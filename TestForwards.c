@@ -2,7 +2,7 @@
 #include <string.h>
 
 #include "API.h"
-
+//hello
 void log(char* text) {
     fprintf(stderr, "%s\n", text);
     fflush(stderr);
