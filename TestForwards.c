@@ -10,7 +10,7 @@ void log(char* text) {
 #define FLOOD_INF 255 //??
 #define MAZE_DIMENSION 16
 
-typedef enum {WALL_N = 0, WALL_E = 1, WALL_S = 2, WALL_W = 3};
+typedef enum {WALL_N = 0, WALL_E = 1, WALL_S = 2, WALL_W = 3} Heading;
 /** flood_fill – BFS from the goal outward, writing distances into weight[][] */
 int weight [MAZE_DIMENSION][MAZE_DIMENSION];
 int walls [MAZE_DIMENSION][MAZE_DIMENSION];
@@ -63,7 +63,9 @@ static void flood_fill(void)
     
     for (int i = 0; i<MAZE_DIMENSION; i++) {
         for (int j=0; j<MAZE_DIMENSION; j++) {
-            API_setText(i,j,"%d", weight[i][j]);
+             char buf[4];
+            snprintf(buf, sizeof(buf), "%d", weight[i][j]);
+            API_setText(i, j, buf);
         }
     }
 }
