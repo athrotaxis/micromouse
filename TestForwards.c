@@ -2,10 +2,11 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdarg.h>
 
 #include "API.h"
 //hello
-void log(char* text) {
+void log2(char* text) {
     fprintf(stderr, "%s\n", text);
     fflush(stderr);
 }
@@ -25,8 +26,13 @@ typedef struct walls {
 //Create a 2D array where each cell contains the data structure walls created above
 walls wall_location[MAZE_DIMENSION][MAZE_DIMENSION];
 
-//Store the mouse direction
+//Initialise the mouse's current direction & position
 typedef enum directions {NORTH, EAST, SOUTH, WEST} directions;
+enum directions mouse_direction = NORTH;
+int mouse_x = 0;
+int mouse_y = 0;
+
+
 
 /*
 Breadth first search flood fill algorithm
@@ -49,10 +55,10 @@ void updateWalls(int x, int y, directions mouse_direction) {
             wall_location[x][y].east = true;
             wall_location[x+1][y].west = true;
             log("wall is in east");
-        } else if (mouse_direction = SOUTH) {
+        } else if (mouse_direction == SOUTH) {
             wall_location[x][y].south = true;
             wall_location[x][y-1].north = true;
-        } else if (mouse_direction = WEST) {
+        } else if (mouse_direction == WEST) {
             wall_location[x][y].west = true;
             wall_location[x-1][y].east = true;
         }
@@ -62,14 +68,8 @@ void updateWalls(int x, int y, directions mouse_direction) {
 }
 
 int main(int argc, char* argv[]) {
-    log("hello world");
-    enum directions mouse_direction = NORTH;
-    //Set center positions
-    weight[7][7] = 0;
-    weight[7][8] = 0;
-    weight[8][7] = 0;
-    weight[8][8] = 0;
-
+    log2("hello world");
+    
     //initialise the 2 arrays as it's bad practice not to
     for (int i=0; i < MAZE_DIMENSION; i++) {
         for (int j=0; j < MAZE_DIMENSION; j++) {
@@ -81,77 +81,34 @@ int main(int argc, char* argv[]) {
         }
     }
     
-
-    while (1) {
-        updateWalls(0,2,mouse_direction);
-        if (!API_wallLeft()) {
-            API_turnLeft();
-        }
-        while (API_wallFront()) {
-            API_turnRight();
-        }
-        API_moveForward();
-    }
-}
-
-
-#define FLOOD_INF 255 //??
-typedef enum {WALL_N = 0, WALL_E = 1, WALL_S = 2, WALL_W = 3} Heading;
-/** flood_fill – BFS from the goal outward, writing distances into weight[][] */
-static void flood_fill(void)
-{
-    /* Simple queue using a static array (max MAZE_W*MAZE_H entries) */
-    int queue[MAZE_DIMENSION * MAZE_DIMENSION][2];
-    int head = 0, tail = 0;
-
-    /* Initialise all weights to infinity */
-    memset(weight, FLOOD_INF, sizeof(weight));
-
-    /* Seed the goal */
+    //Set center positions
     weight[7][7] = 0;
     weight[7][8] = 0;
     weight[8][7] = 0;
     weight[8][8] = 0;
-    queue[tail][0] = 7;
-    queue[tail][1] = 7;
-    tail++;
 
-    /* BFS */
-    while (head < tail) {
-        int cx = queue[head][0];
-        int cy = queue[head][1];
-        head++;
-
-        uint8_t w   = weight[cy][cx];
-        uint8_t wll = walls[cy][cx];
-
-        /* Try each neighbour */
-        int dx[] = { 0,  1,  0, -1 };
-        int dy[] = { 1,  0, -1,  0 };
-        uint8_t nb_wall[] = { WALL_N, WALL_E, WALL_S, WALL_W };
-
-        for (int d = 0; d < 4; d++) {
-            if (wll & nb_wall[d]) continue;   /* wall blocks this direction */
-            int nx = cx + dx[d];
-            int ny = cy + dy[d];
-            if (nx < 0 || nx >= MAZE_DIMENSION || ny < 0 || ny >= MAZE_DIMENSION) continue;
-            if (weight[ny][nx] == FLOOD_INF) {
-                weight[ny][nx] = w + 1;
-                queue[tail][0] = nx;
-                queue[tail][1] = ny;
-                tail++;
-            }
+    while (1) {
+        //updateWalls(0,2,mouse_direction);
+        if (!API_wallLeft()) {
+            API_turnLeft();
+           mouse_direction = (mouse_direction + 3) % 4; //rotates mouse direction by overflowing - used claude
         }
-    }
-    
-    for (int i = 0; i<MAZE_DIMENSION; i++) {
-        for (int j=0; j<MAZE_DIMENSION; j++) {
-             char buf[4];
-            snprintf(buf, sizeof(buf), "%d", weight[i][j]);
-            API_setText(i, j, buf);
+        while (API_wallFront()) {
+            API_turnRight();
+            mouse_direction = (mouse_direction + 1) % 4;
         }
+        API_moveForward();
+        if (mouse_direction == NORTH) {
+            mouse_y++;
+        } else if (mouse_direction == EAST) {
+            mouse_x++;
+        } else if (mouse_direction == SOUTH) {
+            mouse_y--;
+        } else {
+            mouse_x--;
+        }
+        fprintf(stderr, "Mouse direction is %d\n", mouse_direction);
+        fprintf(stderr, "Mouse x coordinate is %d\n", mouse_x);
+        fprintf(stderr, "Mouse y coordinate is %d\n", mouse_y);
     }
 }
-
-
-
