@@ -1,0 +1,20 @@
+// Encoder and wheel constants — adjust to your hardware
+#define ENCODER_TICKS_PER_REV  360     // ticks per full wheel revolution
+#define WHEEL_DIAMETER_MM      40.0f   // measure your actual wheel
+#define WHEELBASE_MM           100.0f  // measure between wheel contact points
+
+#define MM_PER_TICK  (PI * WHEEL_DIAMETER_MM / ENCODER_TICKS_PER_REV)
+
+// Called frequently in a control loop (e.g. every 10 ms)
+void update_odometry() {
+    // Read and reset encoder deltas since last call
+    int32_t ticks_L = readAndResetEncoderLeft();
+    int32_t ticks_R = readAndResetEncoderRight();
+
+    // Convert ticks to mm
+    float d_L = ticks_L * MM_PER_TICK;
+    float d_R = ticks_R * MM_PER_TICK;
+
+    // True forward displacement of the robot centre
+    float d_centre = (d_L + d_R) / 2.0f;
+}
