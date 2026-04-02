@@ -46,15 +46,14 @@ Update the walls of the map
 */
 void updateWalls(int x, int y, directions mouse_direction) {
     //if there is a wall in front, and mouse is facing north, must be a wall to the north of this cell, and a wall to the south of the cell 1 y unit above.
+
     if (API_wallFront()) {
         if(mouse_direction == NORTH) { 
             wall_location[x][y].north = true;
             wall_location[x][y+1].south = true;
-            log("wall is in front");
         } else if(mouse_direction == EAST) {
             wall_location[x][y].east = true;
             wall_location[x+1][y].west = true;
-            log("wall is in east");
         } else if (mouse_direction == SOUTH) {
             wall_location[x][y].south = true;
             wall_location[x][y-1].north = true;
@@ -64,11 +63,25 @@ void updateWalls(int x, int y, directions mouse_direction) {
         }
     }
     
-    
+    if (API_wallLeft()) {
+    if (mouse_direction == NORTH) {
+        wall_location[x][y].west = true;
+        wall_location[x-1][y].east = true;   // cell to the WEST
+    } else if (mouse_direction == EAST) {
+        wall_location[x][y].north = true;
+        wall_location[x][y+1].south = true;  // cell to the NORTH
+    } else if (mouse_direction == SOUTH) {
+        wall_location[x][y].east = true;
+        wall_location[x+1][y].west = true;   // cell to the EAST
+    } else if (mouse_direction == WEST) {
+        wall_location[x][y].south = true;
+        wall_location[x][y-1].north = true;  // cell to the SOUTH
+    }
+}
 }
 
 int main(int argc, char* argv[]) {
-    log2("hello world");
+    log2("Running...");
     
     //initialise the 2 arrays as it's bad practice not to
     for (int i=0; i < MAZE_DIMENSION; i++) {
@@ -87,8 +100,15 @@ int main(int argc, char* argv[]) {
     weight[8][7] = 0;
     weight[8][8] = 0;
 
+    
+
     while (1) {
-        //updateWalls(0,2,mouse_direction);
+        updateWalls(mouse_x, mouse_y, mouse_direction);
+
+        fprintf(stderr, "Mouse direction is %d\n", mouse_direction);
+        fprintf(stderr, "Mouse x coordinate is %d\n", mouse_x);
+        fprintf(stderr, "Mouse y coordinate is %d\n", mouse_y);
+
         if (!API_wallLeft()) {
             API_turnLeft();
            mouse_direction = (mouse_direction + 3) % 4; //rotates mouse direction by overflowing - used claude
@@ -107,8 +127,18 @@ int main(int argc, char* argv[]) {
         } else {
             mouse_x--;
         }
-        fprintf(stderr, "Mouse direction is %d\n", mouse_direction);
-        fprintf(stderr, "Mouse x coordinate is %d\n", mouse_x);
-        fprintf(stderr, "Mouse y coordinate is %d\n", mouse_y);
+        
+        if (wall_location[mouse_x][mouse_y].north) {
+            fprintf(stderr, "Wall detected to the north\n");
+        }
+        if (wall_location[mouse_x][mouse_y].east) {
+            fprintf(stderr, "Wall detected to the east\n");
+        }
+        if (wall_location[mouse_x][mouse_y].south) {
+            fprintf(stderr, "Wall detected to the south\n");
+        }
+        if (wall_location[mouse_x][mouse_y].west) {
+            fprintf(stderr, "Wall detected to the west\n");
+        }
     }
 }
