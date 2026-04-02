@@ -1,0 +1,23 @@
+/*
+EXPLANATION:
+So as far as I understand the gyroscope works by returning integer values which correspond to angular velocity about each of the axes.
+These values are in LSB (least significant bits) which seems to pretty much be a really raw reading that needs to be converted similar to an ultrasonic sensor.
+I dont know exactly how it comes up with that data as in what is going on inside the gyroscope but that isnt too important i dont think.
+CONVERSION:
+Exactly what value we use to convert the raw data to usable angular momentum values seems to depend on the speed of the micromouse.
+*/
+
+//Defining variables
+
+unsigned long last_gyro_time = 0; // used for tracking the previous time in terms of the arduino clock that the gyro last measured at
+
+//Reading sensor
+
+void update_gyro() {
+  unsigned long arduino_time = mircos();  //micros is an arduino function that keeps track of time since the arduino was turned on in microseconds
+  float time_elapsed = (arduino_time - last_gyro_time)/1e6f; //pretty simple, just finding the time between readings, dividing by 10^6 is converting microseconds to seconds.
+}
+
+//Im tired ill do more later
+
+
