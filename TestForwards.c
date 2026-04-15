@@ -54,7 +54,6 @@ Breadth first search flood fill algorithm
 */
 void flood_fill()
 {
-
     int head = 0, tail = 0;
 
     for (uint8_t i = 7; i < 9; i++) {
