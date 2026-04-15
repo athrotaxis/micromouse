@@ -9,11 +9,17 @@ Exactly what value we use to convert the raw data to usable angular momentum val
 
 #include <MPU6050.h>
 
+//Defining some things for l8er
+#define base_speed (whatever we want)
+
 MPU6050 gyro;
 
 //Defining variables
 
 unsigned long last_gyro_time = 0; // used for tracking the previous time in terms of the arduino clock that the gyro last measured at
+float current_heading = 0; //angle at which the micromouse is travelling, 0 being straight forward
+float gyro_z_offset = 0; //rotational velocity gyro reads while stationary
+float target_heading = 0; //the heading the micromouse is supposed to travel at
 
 //Determing the reading whilst stationary so that the gyro may be more accurate
 
@@ -34,9 +40,39 @@ void update_gyro() {
   float time_elapsed = (arduino_time - last_gyro_time)/1e6f; //pretty simple, just finding the time between readings, dividing by 10^6 is converting microseconds to seconds.
   last_gyro_time = arduino_time; 
   int z_rotation_raw = gyro.GetRotationZ(); //raw data for rotation about the z axis
-  float z_rotation = ((float)z_rotation_raw - gyro_z_offset) / 131.0f; //adjusts for the actual rotation by subtracting the stationary reading and dividing by 131 to give rotation in degrees per second
-
+  float yaw = ((float)z_rotation_raw - gyro_z_offset) / 131.0f; //adjusts for the actual rotation by subtracting the stationary reading and dividing by 131 to give rotation in degrees per second
+  if (abs(yaw) < 0.5){ 
+    yaw = 0;
+  }
+  current_heading += yaw * time_elapsed;
 }
+
+//constants for adjusting the value of the correction needed for the heading to be adjusted for properly
+#define correction_constant 2
+#define braking_constant 0.5
+
+//Function for determing the angular correction needed
+
+float heading_correction (float time_elapsed){ 
+  float error = target_heading - current_heading; //figures out the difference in angle between desired and actual direction
+// adjusts the error so that the mouse doesnt turn on the obtuse angle
+  while(error >= 180.0f) {
+    error -= 360.0f;
+  }
+  while(error < 180) {
+    error += 360.0f;
+  }
+  float error_speed = (error - previous_error) / time_elapsed;
+  previous_error = error;
+  return (correction_constant * error) + (braking_constant * error_speed);
+}
+
+void adjust_heading(){
+  float correction = heading_correction(time_elapsed);
+  int left_pwm = base_speed + correction;
+  int right_pwm = base_speed - correction;
+}
+
 
 //Im tired ill do more later
 
