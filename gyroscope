@@ -11,6 +11,8 @@ Exactly what value we use to convert the raw data to usable angular momentum val
 
 //Defining some things for l8er
 #define base_speed (whatever we want)
+#define cell_length 18
+#define mm_per_tick (need this value)
 
 MPU6050 gyro;
 
@@ -47,9 +49,9 @@ void update_gyro() {
   current_heading += yaw * time_elapsed;
 }
 
-//constants for adjusting the value of the correction needed for the heading to be adjusted for properly
-#define correction_constant 2
-#define braking_constant 0.5
+//constants for adjusting the value of the correction needed for the heading to be adjusted at a speed variable to how close it is to the target heading
+#define correction_constant 1
+#define braking_constant 1
 
 //Function for determing the angular correction needed
 
@@ -62,17 +64,42 @@ float heading_correction (float time_elapsed){
   while(error < 180) {
     error += 360.0f;
   }
-  float error_speed = (error - previous_error) / time_elapsed;
+  float error_speed = (error - previous_error) / time_elapsed; //taking the derivative of the error to see how fast the discrepancy in error is changing, later used to ensure smooth correction
   previous_error = error;
   return (correction_constant * error) + (braking_constant * error_speed);
 }
+
+//fairly self explanatory, function for changing motor speed to account for error in heading
 
 void adjust_heading(){
   float correction = heading_correction(time_elapsed);
   int left_pwm = base_speed + correction;
   int right_pwm = base_speed - correction;
+  AnalogWrite(LEFT_MOTOR, left_pwm);
+  AnalogWrite(RIGHT_MOTOR, right_pwm);
 }
 
+//function for driving forward
+
+float forward_distance_travelled = 0.0f; //variable for keeping track of distance travelled
+
+drive_forward(){
+  distance_travelled = 0.0f; //resetting the variable of distance travelled as this function deals with a single cell at a time
+  while (distance_travelled < cell_length){
+    update_gyro();
+    /*  tracking distance
+    int ticks_left = (need function for left wheel encoder);
+    int ticks_right = (need function for right wheel encoder);
+    float left_distance = ticks_left * mm_per_tick;
+    float right_distance = ticks_right * mm_per_tick;
+    float centre_distance = (left_distance + right_distance)/2;
+    distance_travelled += centre_distance;
+    */
+    //correcting the heading
+    adjust_heading();
+  }
+}
+  
 
 //Im tired ill do more later
 
