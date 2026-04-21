@@ -5,7 +5,7 @@
 #include <stdarg.h>
 
 #include "API.h"
-//hello
+
 void log2(char* text) {
     fprintf(stderr, "%s\n", text);
     fflush(stderr);
@@ -77,7 +77,7 @@ void flood_fill()
                     if (current_weight < 255 && weight[nx][ny] > current_weight + 1) {
                         weight[nx][ny] = current_weight + 1;
                         queue[tail++ % QUEUE_SIZE] = (Cell){nx, ny};
-                    }
+                    }  
                 }
             }
         }
@@ -155,18 +155,12 @@ int main(int argc, char* argv[])
     weight[8][7] = 0;
     weight[8][8] = 0;
 
-    // Centre run
-    int center_goals[4][2] = {{7,7}, {7,8}, {8,7}, {8,8}};
-    flood_fill(center_goals, 4);
-
-    // Return to start
-    int start_goal[1][2] = {{0, 0}};
-    flood_fill(start_goal, 1);
-
     //initialize queue
     initializeQueue(&queue);
 
     while (1) {
+        flood_fill();
+
         updateWalls(mouse_x, mouse_y, mouse_direction);
 
         fprintf(stderr, "Mouse direction is %d\n", mouse_direction);
@@ -203,6 +197,12 @@ int main(int argc, char* argv[])
         }
         if (wall_location[mouse_x][mouse_y].west) {
             fprintf(stderr, "Wall detected to the west\n");
+        }
+
+        for (int i = 0; i < MAZE_DIMENSION; i++) {
+            for (int j = 0; j < MAZE_DIMENSION; j++) {
+                API_setText(i, j, weight[i][j]);
+            }
         }
     }
 }
