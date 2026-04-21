@@ -41,21 +41,33 @@ typedef struct {
 #define QUEUE_SIZE 256
 Cell queue[256];
 
-/*
-Breadth first search flood fill algorithm
-*/
+bool wall_in_direction(walls w, int d) {
+    switch(d) {
+        case 0: return w.north;
+        case 1: return w.east;
+        case 2: return w.south;
+        case 3: return w.west;
+    }
+    return false;
+}
 
 void enqueue(Cell c, int* tail) 
 { 
-    queue[*(tail)++ % QUEUE_SIZE] = c; 
+    queue[(*tail)++ % QUEUE_SIZE] = c; 
 }
 Cell dequeue(int* head)       
 { 
-    return queue[*(head)++ % QUEUE_SIZE]; 
+    return queue[(*head)++ % QUEUE_SIZE]; 
 }
 
 void flood_fill()
 {
+     // Reset all weights to 255 before recalculating
+    for (int i = 0; i < MAZE_DIMENSION; i++) {
+        for (int j = 0; j < MAZE_DIMENSION; j++) {
+            weight[i][j] = 255;
+        }
+    }
 
     int head = 0, tail = 0;
 
@@ -107,7 +119,7 @@ void move_best_step()
         if (nx >= 0 && nx < MAZE_DIMENSION && ny >= 0 && ny < MAZE_DIMENSION) {
             // If path is clear in memory
             if (!wall_in_direction(wall_location[mouse_x][mouse_y], d_check)) {
-                if (weight[nx][ny] < min_val) {
+                if (weight[nx][ny] < min_val || (weight[nx][ny] == min_val && d_check == mouse_direction)) { // preference going straight to prevent getting stuck
                     min_val = weight[nx][ny];
                     best_dir = d_check;
                 }
@@ -139,15 +151,7 @@ void move_best_step()
     }
 }
 
-bool wall_in_direction(walls w, int d) {
-    switch(d) {
-        case 0: return w.north;
-        case 1: return w.east;
-        case 2: return w.south;
-        case 3: return w.west;
-    }
-    return false;
-}
+
 
 /*
 Update the walls of the map
@@ -192,7 +196,8 @@ void updateWalls(int x, int y, directions mouse_direction)
 int main(int argc, char* argv[])
 {
     log2("Running...");
-    
+    char buf[4];  //msvc quirk
+
     //initialise the 2 arrays as it's bad practice not to
     for (uint8_t i=0; i < MAZE_DIMENSION; i++) {
         for (uint8_t j=0; j < MAZE_DIMENSION; j++) {
@@ -211,41 +216,15 @@ int main(int argc, char* argv[])
     weight[8][8] = 0;
 
     while (1) {
-        
-
+        flood_fill();
+        fprintf(stderr, "Weight at 0,0: %d\n", weight[0][0]);
+        move_best_step();
         updateWalls(mouse_x, mouse_y, mouse_direction);
 
-        flood_fill();
-
-        move_best_step();
-        
         fprintf(stderr, "Mouse direction is %d\n", mouse_direction);
         fprintf(stderr, "Mouse x coordinate is %d\n", mouse_x);
         fprintf(stderr, "Mouse y coordinate is %d\n", mouse_y);
 
-        /*
-        if (!API_wallLeft()) {
-            API_turnLeft();
-           mouse_direction = (mouse_direction + 3) % 4; //rotates mouse direction by overflowing - used claude
-        }
-        while (API_wallFront()) {
-            API_turnRight();
-            mouse_direction = (mouse_direction + 1) % 4;
-        }
-        API_moveForward();
-        
-
-        if (mouse_direction == NORTH) {
-            mouse_y++;
-        } else if (mouse_direction == EAST) {
-            mouse_x++;
-        } else if (mouse_direction == SOUTH) {
-            mouse_y--;
-        } else {
-            mouse_x--;
-        }
-            */
-        
         if (wall_location[mouse_x][mouse_y].north) {
             fprintf(stderr, "Wall detected to the north\n");
         }
@@ -261,7 +240,8 @@ int main(int argc, char* argv[])
 
         for (int i = 0; i < MAZE_DIMENSION; i++) {
             for (int j = 0; j < MAZE_DIMENSION; j++) {
-                API_setText(i, j, weight[i][j]);
+                sprintf(buf, "%d", weight[i][j]);
+                API_setText(i, j, buf);
             }
         }
     }
