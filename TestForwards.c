@@ -47,15 +47,16 @@ Breadth first search flood fill algorithm
 
 void enqueue(Cell c, int* tail) 
 { 
-    queue[*tail++ % QUEUE_SIZE] = c; 
+    queue[*(tail)++ % QUEUE_SIZE] = c; 
 }
 Cell dequeue(int* head)       
 { 
-    return queue[*head++ % QUEUE_SIZE]; 
+    return queue[*(head)++ % QUEUE_SIZE]; 
 }
 
 void flood_fill()
 {
+
     int head = 0, tail = 0;
 
     for (uint8_t i = 7; i < 9; i++) {
@@ -64,7 +65,8 @@ void flood_fill()
             queue[tail++] = (Cell){i, j};
         }
     }
-    int dx[] = {0, 1, 0, -1};
+    
+    int dx[] = {0, 1, 0, -1}; //can't be uint8_t as its unsigned
     int dy[] = {1, 0, -1, 0};
 
     while (head != tail) {
@@ -83,6 +85,57 @@ void flood_fill()
                 }
             }
         }
+    }
+}
+
+
+/*
+    Move to the neighbour with the lowest cost (preferencing driving straight)
+*/
+void move_best_step()
+{
+    int min_val = 255;
+    int best_dir = -1;
+
+    int dx[] = {0, 1, 0, -1};
+    int dy[] = {1, 0, -1, 0};
+
+    // Check all 4 neighbours
+    for (int d_check = 0; d_check < 4; d_check++) {
+        int nx = mouse_x + dx[d_check];
+        int ny = mouse_y + dy[d_check];
+        if (nx >= 0 && nx < MAZE_DIMENSION && ny >= 0 && ny < MAZE_DIMENSION) {
+            // If path is clear in memory
+            if (!wall_in_direction(wall_location[mouse_x][mouse_y], d_check)) {
+                if (weight[nx][ny] < min_val) {
+                    min_val = weight[nx][ny];
+                    best_dir = d_check;
+                }
+            }
+        }
+    }
+
+    if (best_dir != -1) {
+        // Turn to face best direction
+        if (best_dir == mouse_direction) {
+            // already facing right way
+        } else if (best_dir == (mouse_direction + 1) % 4) {
+            API_turnRight();
+            mouse_direction = (mouse_direction + 1) % 4;
+        } else if (best_dir == (mouse_direction + 3) % 4) {
+            API_turnLeft();
+            mouse_direction = (mouse_direction + 3) % 4;
+        } else {
+            API_turnRight();
+            API_turnRight();
+            mouse_direction = (mouse_direction + 2) % 4;
+        }
+
+        API_moveForward();
+        if (mouse_direction == NORTH) mouse_y++;
+        if (mouse_direction == EAST)  mouse_x++;
+        if (mouse_direction == SOUTH) mouse_y--;
+        if (mouse_direction == WEST)  mouse_x--;
     }
 }
 
@@ -158,14 +211,19 @@ int main(int argc, char* argv[])
     weight[8][8] = 0;
 
     while (1) {
-        flood_fill();
+        
 
         updateWalls(mouse_x, mouse_y, mouse_direction);
 
+        flood_fill();
+
+        move_best_step();
+        
         fprintf(stderr, "Mouse direction is %d\n", mouse_direction);
         fprintf(stderr, "Mouse x coordinate is %d\n", mouse_x);
         fprintf(stderr, "Mouse y coordinate is %d\n", mouse_y);
 
+        /*
         if (!API_wallLeft()) {
             API_turnLeft();
            mouse_direction = (mouse_direction + 3) % 4; //rotates mouse direction by overflowing - used claude
@@ -175,6 +233,8 @@ int main(int argc, char* argv[])
             mouse_direction = (mouse_direction + 1) % 4;
         }
         API_moveForward();
+        
+
         if (mouse_direction == NORTH) {
             mouse_y++;
         } else if (mouse_direction == EAST) {
@@ -184,6 +244,7 @@ int main(int argc, char* argv[])
         } else {
             mouse_x--;
         }
+            */
         
         if (wall_location[mouse_x][mouse_y].north) {
             fprintf(stderr, "Wall detected to the north\n");
