@@ -190,6 +190,22 @@ void updateWalls(int x, int y, directions mouse_direction)
         wall_location[x][y].south = true;
         wall_location[x][y-1].north = true;  // cell to the SOUTH
     }
+    //below one is claude generated - check
+    if (API_wallRight()) {
+    if (mouse_direction == NORTH) {
+        wall_location[x][y].east = true;
+        wall_location[x+1][y].west = true;
+    } else if (mouse_direction == EAST) {
+        wall_location[x][y].south = true;
+        wall_location[x][y-1].north = true;
+    } else if (mouse_direction == SOUTH) {
+        wall_location[x][y].west = true;
+        wall_location[x-1][y].east = true;
+    } else if (mouse_direction == WEST) {
+        wall_location[x][y].north = true;
+        wall_location[x][y+1].south = true;
+    }
+}
 }
 }
 
