@@ -32,13 +32,6 @@ int mouse_y = 0;
 //Create a 2D array where each cell contains the data structure walls created above
 walls wall_location[MAZE_DIMENSION][MAZE_DIMENSION];
 
-typedef struct
-{
-    uint8_t items[MAZE_DIMENSION * MAZE_DIMENSION];  // 256 slots
-    uint8_t front;
-    uint8_t rear;
-} Queue;
-
 //store cell location to look thru
 typedef struct {
     int x, y;
@@ -47,11 +40,20 @@ typedef struct {
 //Make queue
 #define QUEUE_SIZE 256
 Cell queue[256];
-int head = 0, tail = 0;
 
 /*
 Breadth first search flood fill algorithm
 */
+
+void enqueue(Cell c, int* tail) 
+{ 
+    queue[*tail++ % QUEUE_SIZE] = c; 
+}
+Cell dequeue(int* head)       
+{ 
+    return queue[*head++ % QUEUE_SIZE]; 
+}
+
 void flood_fill()
 {
     int head = 0, tail = 0;
@@ -66,7 +68,7 @@ void flood_fill()
     int dy[] = {1, 0, -1, 0};
 
     while (head != tail) {
-        Cell c = queue[head++ % QUEUE_SIZE];
+        Cell c = dequeue(&head);
         uint8_t current_weight = weight[c.x][c.y];
 
         for (int d = 0; d < 4; d++) {
@@ -76,7 +78,7 @@ void flood_fill()
                 if (!wall_in_direction(wall_location[c.x][c.y], d)) {
                     if (current_weight < 255 && weight[nx][ny] > current_weight + 1) {
                         weight[nx][ny] = current_weight + 1;
-                        queue[tail++ % QUEUE_SIZE] = (Cell){nx, ny};
+                        enqueue((Cell){nx, ny}, &tail);
                     }  
                 }
             }
@@ -141,7 +143,7 @@ int main(int argc, char* argv[])
     //initialise the 2 arrays as it's bad practice not to
     for (uint8_t i=0; i < MAZE_DIMENSION; i++) {
         for (uint8_t j=0; j < MAZE_DIMENSION; j++) {
-            weight[i][j] = 999; //initialise to infinity for some reason not sure?
+            weight[i][j] = 255; //initialise to infinity for some reason not sure?
             wall_location[i][j].north = false;
             wall_location[i][j].east = false;
             wall_location[i][j].south = false;
@@ -154,9 +156,6 @@ int main(int argc, char* argv[])
     weight[7][8] = 0;
     weight[8][7] = 0;
     weight[8][8] = 0;
-
-    //initialize queue
-    initializeQueue(&queue);
 
     while (1) {
         flood_fill();
