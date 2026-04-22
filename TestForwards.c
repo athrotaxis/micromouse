@@ -162,51 +162,56 @@ void updateWalls(int x, int y, directions mouse_direction)
 
     if (API_wallFront()) {
         if(mouse_direction == NORTH) { 
-            wall_location[x][y].north = true;
+            wall_location[x][y].north = true; //????????????????????????????????????????????????????
             wall_location[x][y+1].south = true;
+            //API_setWall(x, y, 'n');
         } else if(mouse_direction == EAST) {
             wall_location[x][y].east = true;
             wall_location[x+1][y].west = true;
+            //API_setWall(x, y, 'e');
         } else if (mouse_direction == SOUTH) {
             wall_location[x][y].south = true;
             wall_location[x][y-1].north = true;
+            //API_setWall(x, y, 's');
         } else if (mouse_direction == WEST) {
             wall_location[x][y].west = true;
             wall_location[x-1][y].east = true;
+            //API_setWall(x, y, 'w');
         }
     }
     
     if (API_wallLeft()) {
-    if (mouse_direction == NORTH) {
-        wall_location[x][y].west = true;
-        wall_location[x-1][y].east = true;   // cell to the WEST
-    } else if (mouse_direction == EAST) {
-        wall_location[x][y].north = true;
-        wall_location[x][y+1].south = true;  // cell to the NORTH
-    } else if (mouse_direction == SOUTH) {
-        wall_location[x][y].east = true;
-        wall_location[x+1][y].west = true;   // cell to the EAST
-    } else if (mouse_direction == WEST) {
-        wall_location[x][y].south = true;
-        wall_location[x][y-1].north = true;  // cell to the SOUTH
+        if (mouse_direction == NORTH) {
+            wall_location[x][y].east = true; //wrong??
+            wall_location[x-1][y].west = true;   // cell to the WEST
+        } else if (mouse_direction == EAST) {
+            wall_location[x][y].north = true;
+            wall_location[x][y+1].south = true;  // cell to the NORTH
+        } else if (mouse_direction == SOUTH) {
+            wall_location[x][y].east = true;
+            wall_location[x+1][y].west = true;   // cell to the EAST
+        } else if (mouse_direction == WEST) {
+            wall_location[x][y].south = true;
+            wall_location[x][y-1].north = true;  // cell to the SOUTH
+        }
     }
     //below one is claude generated - check
+    //check if its in bounds??
     if (API_wallRight()) {
-    if (mouse_direction == NORTH) {
-        wall_location[x][y].east = true;
-        wall_location[x+1][y].west = true;
-    } else if (mouse_direction == EAST) {
-        wall_location[x][y].south = true;
-        wall_location[x][y-1].north = true;
-    } else if (mouse_direction == SOUTH) {
-        wall_location[x][y].west = true;
-        wall_location[x-1][y].east = true;
-    } else if (mouse_direction == WEST) {
-        wall_location[x][y].north = true;
-        wall_location[x][y+1].south = true;
+        if (mouse_direction == NORTH) {
+            wall_location[x][y].west = true;
+            wall_location[x+1][y].east = true;
+        } else if (mouse_direction == EAST) {
+            wall_location[x][y].south = true;
+            wall_location[x][y-1].north = true;
+        } else if (mouse_direction == SOUTH) {
+            wall_location[x][y].west = true;
+            wall_location[x-1][y].east = true;
+        } else if (mouse_direction == WEST) {
+            wall_location[x][y].south = true;
+            wall_location[x][y-1].north = true;
+        }
     }
-}
-}
 }
 
 int main(int argc, char* argv[])
@@ -233,10 +238,9 @@ int main(int argc, char* argv[])
 
     while (1) {
         flood_fill();
-        fprintf(stderr, "Weight at 0,0: %d\n", weight[0][0]);
-        move_best_step();
         updateWalls(mouse_x, mouse_y, mouse_direction);
 
+        fprintf(stderr, "-----------------------------------------");
         fprintf(stderr, "Mouse direction is %d\n", mouse_direction);
         fprintf(stderr, "Mouse x coordinate is %d\n", mouse_x);
         fprintf(stderr, "Mouse y coordinate is %d\n", mouse_y);
@@ -260,5 +264,7 @@ int main(int argc, char* argv[])
                 API_setText(i, j, buf);
             }
         }
+
+        move_best_step();
     }
 }
