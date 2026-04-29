@@ -42,6 +42,26 @@ Exactly what value we use to convert the raw data to usable angular momentum val
 
 MPU6050 gyro;
 
+//STATES & SUCH
+enum State {
+  StateFinished,
+  StateForward,
+  StateTurn,
+  StateAdjust,
+  StateCentre
+};
+
+State currentState = StateForward;
+
+enum Event{
+  EventBegin,
+  EventFinish,
+  EventOffCentre,
+  EventCrooked,
+  EventBlocked,
+  EventNone
+};
+
 //Defining variables
 
 unsigned long last_gyro_time = 0; // used for tracking the previous time in terms of the arduino clock that the gyro last measured at
@@ -113,7 +133,7 @@ void adjust_heading(){
 
 float forward_distance_travelled = 0.0f; //variable for keeping track of distance travelled
 
-drive_forward(){
+void drive_forward(){
   distance_travelled = 0.0f; //resetting the variable of distance travelled as this function deals with a single cell at a time
   while (distance_travelled < cell_length){
     update_gyro();
@@ -137,25 +157,15 @@ void stop(){
   digitalWrite(RIGHT_MOTOR_2,LOW);
 }
 
-//STATES & SUCH
-enum State {
-  StateFinished;
-  StateForward;
-  StateTurn;
-  StateAdjust;
-  StateCentre;
+Event update_event(){
+  Event yaw = update_gyro();
 }
 
-State currentState = StateForward;
+void do_thing(){
 
-enum Event{
-  EventBegin;
-  EventFinish;
-  EventOffCentre;
-  EventCrooked;
-  EventBlocked;
-  EventNone;
 }
+
+
 
 State transition(State state, Event event){
   switch(state){
@@ -180,18 +190,19 @@ State transition(State state, Event event){
   }
   return state;
 }
+
+
 void setup() {
-  // put your setup code here, to run once:
+  
 
 }
 
 void loop() {
-  Event event = updategyro();
+  Event event = update_event();
 
-  if (currentState == StateFinished){
-    stop();
-    return;
-  }
+  current_state = transition(current_state, event);
+
+  do_thing(current_state);
   
 }
 
@@ -199,5 +210,3 @@ void loop() {
   
 
 //Im tired ill do more later
-
-
