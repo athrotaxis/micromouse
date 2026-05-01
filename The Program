@@ -9,19 +9,19 @@ Exactly what value we use to convert the raw data to usable angular momentum val
 
 #include <MPU6050.h>
 #include <iostream>
+#include <Wire.h>
+#include "SparkFun_VL53L1X.h"
 
 //PIN DEFINITIONS
-#define IR_SENSOR_LEFT
-#define IR_SENSOR_LEFT_INPUT
-#define IR_SENSOR_LEFT_OUTPUT
+//Sensors
+#define XSHUT_FRONT 
+#define XSHUT_LEFT
+#define XSHUT_RIGHT
 
-#define IR_SENSOR_FRONT
-#define IR_SENSOR_FRONT_INPUT
-#define IR_SENSOR_FRONT_OUTPUT
+#define FRONT_ADDRESS 0x29
+#define LEFT_ADDRESS 0x30
+#define RIGHT_ADDRESS 0x31
 
-#define IR_SENSOR_FRONT
-#define IR_SENSOR_LEFT_INPUT
-#define IR_SENSOR_LEFT_OUTPUT
 
 //MOTOR PINS
 #define LEFT_MOTOR_1
@@ -41,6 +41,7 @@ Exactly what value we use to convert the raw data to usable angular momentum val
 #define mm_per_tick (need this value)
 
 MPU6050 gyro;
+SFEVL53L1X sensorFront, sensorLeft, sensorRight;
 
 //STATES & SUCH
 enum State {
@@ -150,6 +151,24 @@ void drive_forward(){
   }
 }
 
+//IR SENSORS
+
+void read_front_sensor(){
+
+}
+
+void read_left_sensor(){
+
+}
+
+void read_right_sensor(){
+
+}
+
+void read_sensors(){
+
+}
+
 void stop(){
   digitalWrite(LEFT_MOTOR_1,LOW);
   digitalWrite(LEFT_MOTOR_2,LOW);
@@ -159,6 +178,11 @@ void stop(){
 
 Event update_event(){
   Event yaw = update_gyro();
+  Event position = update_sensors();
+
+  if(yaw != EventNo) return yaw;
+  if (position != EventNo) return position;
+  return EventNo;
 }
 
 void do_thing(){
@@ -193,7 +217,36 @@ State transition(State state, Event event){
 
 
 void setup() {
-  
+  //IMU
+  calibrate_gyro();
+
+  //SENSORS
+  Wire.begin();
+
+  //Setting up sensors to output and powering them down
+  pinMode(XSHUT_FRONT, OUTPUT);
+  pinMode(XSHUT_LEFT, OUTPUT);
+  pinMode(XSHUT_RIGHT, OUTPUT);
+
+  digitalWrite(XSHUT_FRONT, LOW);
+  digitalWrite(XSHUT_LEFT, LOW);
+  digitalWrite(XSHUT_RIGHT, LOW);
+  delay(10);
+
+  //Individually powering on sensors and assigning them their appropriate address
+  digitalWrite(XSHUT_FRONT, HIGH);
+  delay(10);
+  sensorFront.begin();
+
+  digitalWrite(XSHUT_LEFT, HIGH);
+  delay(10);
+  sensorLeft.begin();
+  sensorLeft.setI2CAddress(LEFT_ADDRESS);
+
+  digitalWrite(XSHUT_RIGHT, HIGH);
+  delay(10);
+  sensorRight.begin();
+  sensorRight.setI2CAddress(RIGHT_ADDRESS);
 
 }
 
