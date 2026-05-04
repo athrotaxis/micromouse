@@ -1,100 +1,89 @@
-
-
 #include <stdio.h>
-
 #include <string.h>
-
 #include <stdint.h>
+#include <stdbool.h>
+#include <stdarg.h>
 
 #include "API.h"
 
-//hello
-
-void log(char* text) {
-
+void log2(char* text) {
     fprintf(stderr, "%s\n", text);
-
     fflush(stderr);
-
 }
-
-#define FLOOD_INF 255 //??
 
 #define MAZE_DIMENSION 16
 
-
-typedef enum {WALL_N = 1, WALL_E = 2, WALL_S = 4, WALL_W = 8} Heading;
-
-/** flood_fill – BFS from the goal outward, writing distances into weight[][] */
-
 uint8_t weight [MAZE_DIMENSION][MAZE_DIMENSION];
 
-uint8_t walls [MAZE_DIMENSION][MAZE_DIMENSION];
+//Make a data structure containing the possible positions of walls
+typedef struct walls { 
+    bool north;
+    bool east;
+    bool south;
+    bool west;
+} walls;
 
+//Initialise the mouse's current direction & position
+typedef enum directions {NORTH, EAST, SOUTH, WEST} directions;
+enum directions mouse_direction = NORTH;
+int mouse_x = 0;
+int mouse_y = 0;
 
-static void flood_fill(void)
+//Create a 2D array where each cell contains the data structure walls created above
+walls wall_location[MAZE_DIMENSION][MAZE_DIMENSION];
 
+//store cell location to look thru
+typedef struct {
+    int x, y;
+} Cell;
+
+//Make queue
+#define QUEUE_SIZE 256
+Cell queue[256];
+
+bool wall_in_direction(walls w, int d) {
+    switch(d) {
+        case 0: return w.north;
+        case 1: return w.east;
+        case 2: return w.south;
+        case 3: return w.west;
+    }
+    return false;
+}
+
+void enqueue(Cell c, int* tail) 
+{ 
+    queue[(*tail)++ % QUEUE_SIZE] = c; 
+}
+Cell dequeue(int* head)       
+{ 
+    return queue[(*head)++ % QUEUE_SIZE]; 
+}
+
+void flood_fill()
 {
-
-    /* Simple queue using a static array (max MAZE_W*MAZE_H entries) */
-
-    int queue[MAZE_DIMENSION * MAZE_DIMENSION][2];
+     // Reset all weights to 255 before recalculating
+    for (int i = 0; i < MAZE_DIMENSION; i++) {
+        for (int j = 0; j < MAZE_DIMENSION; j++) {
+            weight[i][j] = 255;
+        }
+    }
 
     int head = 0, tail = 0;
 
-
-    /* Initialise all weights to infinity */
-
-    memset(weight, FLOOD_INF, sizeof(weight));
-
-
-    /* Seed the goal */
-
-    weight[7][7] = 0;
-
-    weight[7][8] = 0;
-
-    weight[8][7] = 0;
-
-    weight[8][8] = 0;
-
-    int seeds[4][2] = {{7,7},{7,8},{8,7},{8,8}};
-
-    for (int s = 0; s < 4; s++) {
-
-        queue[tail][0] = seeds[s][0];
-
-        queue[tail][1] = seeds[s][1];
-
-        tail++;
-
+    for (uint8_t i = 7; i < 9; i++) {
+        for (uint8_t j = 7; j < 9; j++) {
+            weight[i][j] = 0;
+            queue[tail++] = (Cell){i, j};
+        }
     }
+    
+    int dx[] = {0, 1, 0, -1}; //can't be uint8_t as its unsigned
+    int dy[] = {1, 0, -1, 0};
 
-
-    /* BFS */
-
-    while (head < tail) {
-
-        int cx = queue[head][0];
-
-        int cy = queue[head][1];
-
-        head++;
-
-
-        uint8_t w   = weight[cy][cx];
-
-        uint8_t wll = walls[cy][cx];
-
-
-        /* Try each neighbour */
-
-        int dx[] = { 0,  1,  0, -1 };
-
-        int dy[] = { 1,  0, -1,  0 };
-
-        uint8_t nb_wall[] = { WALL_N, WALL_E, WALL_S, WALL_W };
-
+    while (head != tail) {
+        Cell c = dequeue(&head);
+        uint8_t current_weight = weight[c.x][c.y];
 
         for (int d = 0; d < 4; d++) {
             int nx = c.x + dx[d];
@@ -173,63 +162,85 @@ void updateWalls(int x, int y, directions mouse_direction)
 
     if (API_wallFront()) {
         if(mouse_direction == NORTH) { 
-            wall_location[x][y].north = true;
+            wall_location[x][y].north = true; //????????????????????????????????????????????????????
             wall_location[x][y+1].south = true;
+            //API_setWall(x, y, 'n');
         } else if(mouse_direction == EAST) {
             wall_location[x][y].east = true;
             wall_location[x+1][y].west = true;
+            //API_setWall(x, y, 'e');
         } else if (mouse_direction == SOUTH) {
             wall_location[x][y].south = true;
             wall_location[x][y-1].north = true;
+            //API_setWall(x, y, 's');
         } else if (mouse_direction == WEST) {
             wall_location[x][y].west = true;
             wall_location[x-1][y].east = true;
+            //API_setWall(x, y, 'w');
         }
     }
     
     if (API_wallLeft()) {
-    if (mouse_direction == NORTH) {
-        wall_location[x][y].west = true;
-        wall_location[x-1][y].east = true;   // cell to the WEST
-    } else if (mouse_direction == EAST) {
-        wall_location[x][y].north = true;
-        wall_location[x][y+1].south = true;  // cell to the NORTH
-    } else if (mouse_direction == SOUTH) {
-        wall_location[x][y].east = true;
-        wall_location[x+1][y].west = true;   // cell to the EAST
-    } else if (mouse_direction == WEST) {
-        wall_location[x][y].south = true;
-        wall_location[x][y-1].north = true;  // cell to the SOUTH
+        if (mouse_direction == NORTH) {
+            wall_location[x][y].east = true; //wrong??
+            wall_location[x-1][y].west = true;   // cell to the WEST
+        } else if (mouse_direction == EAST) {
+            wall_location[x][y].north = true;
+            wall_location[x][y+1].south = true;  // cell to the NORTH
+        } else if (mouse_direction == SOUTH) {
+            wall_location[x][y].east = true;
+            wall_location[x+1][y].west = true;   // cell to the EAST
+        } else if (mouse_direction == WEST) {
+            wall_location[x][y].south = true;
+            wall_location[x][y-1].north = true;  // cell to the SOUTH
+        }
     }
     //below one is claude generated - check
+    //check if its in bounds??
     if (API_wallRight()) {
-    if (mouse_direction == NORTH) {
-        wall_location[x][y].east = true;
-        wall_location[x+1][y].west = true;
-    } else if (mouse_direction == EAST) {
-        wall_location[x][y].south = true;
-        wall_location[x][y-1].north = true;
-    } else if (mouse_direction == SOUTH) {
-        wall_location[x][y].west = true;
-        wall_location[x-1][y].east = true;
-    } else if (mouse_direction == WEST) {
-        wall_location[x][y].north = true;
-        wall_location[x][y+1].south = true;
+        if (mouse_direction == NORTH) {
+            wall_location[x][y].west = true;
+            wall_location[x+1][y].east = true;
+        } else if (mouse_direction == EAST) {
+            wall_location[x][y].south = true;
+            wall_location[x][y-1].north = true;
+        } else if (mouse_direction == SOUTH) {
+            wall_location[x][y].west = true;
+            wall_location[x-1][y].east = true;
+        } else if (mouse_direction == WEST) {
+            wall_location[x][y].south = true;
+            wall_location[x][y-1].north = true;
+        }
     }
 }
-}
-}
 
-int main(int argc, char* argv[]) {
+int main(int argc, char* argv[])
+{
+    log2("Running...");
+    char buf[4];  //msvc quirk
 
-    flood_fill();
+    //initialise the 2 arrays as it's bad practice not to
+    for (uint8_t i=0; i < MAZE_DIMENSION; i++) {
+        for (uint8_t j=0; j < MAZE_DIMENSION; j++) {
+            weight[i][j] = 255; //initialise to infinity for some reason not sure?
+            wall_location[i][j].north = false;
+            wall_location[i][j].east = false;
+            wall_location[i][j].south = false;
+            wall_location[i][j].west = false;
+        }
+    }
+    
+    //Set center positions
+    weight[7][7] = 0;
+    weight[7][8] = 0;
+    weight[8][7] = 0;
+    weight[8][8] = 0;
 
     while (1) {
         flood_fill();
-        fprintf(stderr, "Weight at 0,0: %d\n", weight[0][0]);
-        move_best_step();
         updateWalls(mouse_x, mouse_y, mouse_direction);
 
+        fprintf(stderr, "-----------------------------------------");
         fprintf(stderr, "Mouse direction is %d\n", mouse_direction);
         fprintf(stderr, "Mouse x coordinate is %d\n", mouse_x);
         fprintf(stderr, "Mouse y coordinate is %d\n", mouse_y);
@@ -240,12 +251,20 @@ int main(int argc, char* argv[]) {
         if (wall_location[mouse_x][mouse_y].east) {
             fprintf(stderr, "Wall detected to the east\n");
         }
-
-        while (API_wallFront()) {
-
-            API_turnRight();
-
+        if (wall_location[mouse_x][mouse_y].south) {
+            fprintf(stderr, "Wall detected to the south\n");
         }
-    }
+        if (wall_location[mouse_x][mouse_y].west) {
+            fprintf(stderr, "Wall detected to the west\n");
+        }
 
+        for (int i = 0; i < MAZE_DIMENSION; i++) {
+            for (int j = 0; j < MAZE_DIMENSION; j++) {
+                sprintf(buf, "%d", weight[i][j]);
+                API_setText(i, j, buf);
+            }
+        }
+
+        move_best_step();
+    }
 }
