@@ -156,14 +156,15 @@ void move_best_step()
 /*
 Update the walls of the map
 */
+/*
 void updateWalls(int x, int y, directions mouse_direction)
 {
     //if there is a wall in front, and mouse is facing north, must be a wall to the north of this cell, and a wall to the south of the cell 1 y unit above.
 
     if (API_wallFront()) {
-        if(mouse_direction == NORTH) { 
-            wall_location[x][y].north = true; //????????????????????????????????????????????????????
-            wall_location[x][y+1].south = true;
+        if (mouse_direction == NORTH) {
+            wall_location[x][y].west = true;
+            wall_location[x-1][y].east = true;
             //API_setWall(x, y, 'n');
         } else if(mouse_direction == EAST) {
             wall_location[x][y].east = true;
@@ -199,8 +200,8 @@ void updateWalls(int x, int y, directions mouse_direction)
     //check if its in bounds??
     if (API_wallRight()) {
         if (mouse_direction == NORTH) {
-            wall_location[x][y].west = true;
-            wall_location[x+1][y].east = true;
+            wall_location[x][y].east = true;
+            wall_location[x+1][y].west = true;
         } else if (mouse_direction == EAST) {
             wall_location[x][y].south = true;
             wall_location[x][y-1].north = true;
@@ -208,8 +209,58 @@ void updateWalls(int x, int y, directions mouse_direction)
             wall_location[x][y].west = true;
             wall_location[x-1][y].east = true;
         } else if (mouse_direction == WEST) {
+            wall_location[x][y].north = true;
+            wall_location[x][y+1].south = true;
+        }
+    }
+}
+*/
+void updateWalls(int x, int y, directions mouse_direction) {
+if (API_wallFront()) {
+        if (mouse_direction == NORTH) {
+            wall_location[x][y].north = true;
+            if (y < MAZE_DIMENSION - 1) wall_location[x][y+1].south = true;
+        } else if (mouse_direction == EAST) {
+            wall_location[x][y].east = true;
+            if (x < MAZE_DIMENSION - 1) wall_location[x+1][y].west = true;
+        } else if (mouse_direction == SOUTH) {
             wall_location[x][y].south = true;
-            wall_location[x][y-1].north = true;
+            if (y > 0) wall_location[x][y-1].north = true;
+        } else if (mouse_direction == WEST) {
+            wall_location[x][y].west = true;
+            if (x > 0) wall_location[x-1][y].east = true;
+        }
+    }
+
+    if (API_wallLeft()) {
+        if (mouse_direction == NORTH) {
+            wall_location[x][y].west = true;
+            if (x > 0) wall_location[x-1][y].east = true;
+        } else if (mouse_direction == EAST) {
+            wall_location[x][y].north = true;
+            if (y < MAZE_DIMENSION - 1) wall_location[x][y+1].south = true;
+        } else if (mouse_direction == SOUTH) {
+            wall_location[x][y].east = true;
+            if (x < MAZE_DIMENSION - 1) wall_location[x+1][y].west = true;
+        } else if (mouse_direction == WEST) {
+            wall_location[x][y].south = true;
+            if (y > 0) wall_location[x][y-1].north = true;
+        }
+    }
+
+    if (API_wallRight()) {
+        if (mouse_direction == NORTH) {
+            wall_location[x][y].east = true;
+            if (x < MAZE_DIMENSION - 1) wall_location[x+1][y].west = true;
+        } else if (mouse_direction == EAST) {
+            wall_location[x][y].south = true;
+            if (y > 0) wall_location[x][y-1].north = true;
+        } else if (mouse_direction == SOUTH) {
+            wall_location[x][y].west = true;
+            if (x > 0) wall_location[x-1][y].east = true;
+        } else if (mouse_direction == WEST) {
+            wall_location[x][y].north = true;
+            if (y < MAZE_DIMENSION - 1) wall_location[x][y+1].south = true;
         }
     }
 }
@@ -237,9 +288,10 @@ int main(int argc, char* argv[])
     weight[8][8] = 0;
 
     while (1) {
-        flood_fill();
+        
         updateWalls(mouse_x, mouse_y, mouse_direction);
-
+        flood_fill();
+        
         fprintf(stderr, "-----------------------------------------");
         fprintf(stderr, "Mouse direction is %d\n", mouse_direction);
         fprintf(stderr, "Mouse x coordinate is %d\n", mouse_x);
@@ -266,5 +318,6 @@ int main(int argc, char* argv[])
         }
 
         move_best_step();
+       
     }
 }
