@@ -159,6 +159,8 @@ void move_best_step()
 Update the walls of the map
 */
 /*
+
+
 void updateWalls(int x, int y, directions mouse_direction)
 {
     //if there is a wall in front, and mouse is facing north, must be a wall to the north of this cell, and a wall to the south of the cell 1 y unit above.
@@ -217,6 +219,7 @@ void updateWalls(int x, int y, directions mouse_direction)
     }
 }
 */
+/*
 void updateWalls(int x, int y, directions mouse_direction) {
 if (API_wallFront()) {
         if (mouse_direction == NORTH) {
@@ -266,7 +269,68 @@ if (API_wallFront()) {
         }
     }
 }
+*/
+void updateWalls(int x, int y, directions mouse_direction) {
+    if (API_wallFront()) {
+        if (mouse_direction == NORTH) {
+            wall_location[x][y].north = true;
+            API_setWall(x, y, 'n');
+            if (y < MAZE_DIMENSION - 1) { wall_location[x][y+1].south = true; API_setWall(x, y+1, 's'); }
+        } else if (mouse_direction == EAST) {
+            wall_location[x][y].east = true;
+            API_setWall(x, y, 'e');
+            if (x < MAZE_DIMENSION - 1) { wall_location[x+1][y].west = true; API_setWall(x+1, y, 'w'); }
+        } else if (mouse_direction == SOUTH) {
+            wall_location[x][y].south = true;
+            API_setWall(x, y, 's');
+            if (y > 0) { wall_location[x][y-1].north = true; API_setWall(x, y-1, 'n'); }
+        } else if (mouse_direction == WEST) {
+            wall_location[x][y].west = true;
+            API_setWall(x, y, 'w');
+            if (x > 0) { wall_location[x-1][y].east = true; API_setWall(x-1, y, 'e'); }
+        }
+    }
 
+    if (API_wallLeft()) {
+        if (mouse_direction == NORTH) {
+            wall_location[x][y].west = true;
+            API_setWall(x, y, 'w');
+            if (x > 0) { wall_location[x-1][y].east = true; API_setWall(x-1, y, 'e'); }
+        } else if (mouse_direction == EAST) {
+            wall_location[x][y].north = true;
+            API_setWall(x, y, 'n');
+            if (y < MAZE_DIMENSION - 1) { wall_location[x][y+1].south = true; API_setWall(x, y+1, 's'); }
+        } else if (mouse_direction == SOUTH) {
+            wall_location[x][y].east = true;
+            API_setWall(x, y, 'e');
+            if (x < MAZE_DIMENSION - 1) { wall_location[x+1][y].west = true; API_setWall(x+1, y, 'w'); }
+        } else if (mouse_direction == WEST) {
+            wall_location[x][y].south = true;
+            API_setWall(x, y, 's');
+            if (y > 0) { wall_location[x][y-1].north = true; API_setWall(x, y-1, 'n'); }
+        }
+    }
+
+    if (API_wallRight()) {
+        if (mouse_direction == NORTH) {
+            wall_location[x][y].east = true;
+            API_setWall(x, y, 'e');
+            if (x < MAZE_DIMENSION - 1) { wall_location[x+1][y].west = true; API_setWall(x+1, y, 'w'); }
+        } else if (mouse_direction == EAST) {
+            wall_location[x][y].south = true;
+            API_setWall(x, y, 's');
+            if (y > 0) { wall_location[x][y-1].north = true; API_setWall(x, y-1, 'n'); }
+        } else if (mouse_direction == SOUTH) {
+            wall_location[x][y].west = true;
+            API_setWall(x, y, 'w');
+            if (x > 0) { wall_location[x-1][y].east = true; API_setWall(x-1, y, 'e'); }
+        } else if (mouse_direction == WEST) {
+            wall_location[x][y].north = true;
+            API_setWall(x, y, 'n');
+            if (y < MAZE_DIMENSION - 1) { wall_location[x][y+1].south = true; API_setWall(x, y+1, 's'); }
+        }
+    }
+}
 int main(int argc, char* argv[])
 {
     log2("Running...");
