@@ -41,6 +41,8 @@ typedef struct {
 #define QUEUE_SIZE 256
 Cell queue[256];
 
+bool visited[MAZE_DIMENSION][MAZE_DIMENSION];
+
 bool wall_in_direction(walls w, int d) {
     switch(d) {
         case 0: return w.north;
@@ -287,11 +289,20 @@ int main(int argc, char* argv[])
     weight[8][7] = 0;
     weight[8][8] = 0;
 
+    for (int i = 0; i<16; i++) {
+        for (int j=0; j<16; j++) {
+            visited[i][j] = false;
+        }
+    }
+
     while (1) {
-        
+        if (!visited[mouse_x][mouse_y]) {
+            visited[mouse_x][mouse_y] = true;
+            API_setColor(mouse_x, mouse_y, 'c'); // cyan
+        }
         updateWalls(mouse_x, mouse_y, mouse_direction);
         flood_fill();
-        
+
         fprintf(stderr, "-----------------------------------------");
         fprintf(stderr, "Mouse direction is %d\n", mouse_direction);
         fprintf(stderr, "Mouse x coordinate is %d\n", mouse_x);
