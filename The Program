@@ -156,6 +156,20 @@ void drive_forward(){
   }
 }
 
+void turn(float turn_angle){
+  if (turn_angle > current_heading){
+    while (current_heading <= abs(turn_angle)){
+      update_gyro();
+
+    }
+  }
+  if (turn_angle < current_heading){
+    while (current_heading >= abs(turn_angle)){
+      update_gyro();
+      
+    }
+  }
+}
 //IR SENSORS (returns distance in mm)
 
 void read_front_sensor(){
