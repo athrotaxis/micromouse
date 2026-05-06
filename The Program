@@ -40,6 +40,10 @@ Exactly what value we use to convert the raw data to usable angular momentum val
 #define cell_length 18
 #define mm_per_tick (need this value)
 
+//Defining distances so that the mouse knows if the wall it is detecting is the wall associated with the cell its in or not
+#define FRONT_WALL_THRESHOLD
+#define SIDE_WALL_THRESHOLD
+
 MPU6050 gyro;
 SFEVL53L1X sensorFront, sensorLeft, sensorRight;
 
@@ -49,6 +53,7 @@ enum State {
   StateForward,
   StateTurn,
   StateAdjust,
+  StateNewCell
   StateCentre
 };
 
@@ -151,24 +156,92 @@ void drive_forward(){
   }
 }
 
-//IR SENSORS
+//IR SENSORS (returns distance in mm)
 
 void read_front_sensor(){
-
+  while(!sensorFront.checkForDataReady()) delay(1);
+  int distance_front = sensorFront.getDistance();
+  sensorFront.clearInput();
+  sensorFront.stopRanging();
 }
 
 void read_left_sensor(){
-
+  while(!sensorLeft.checkForDataReady()) delay(1);
+  int distance_front = sensorLeft.getDistance();
+  sensorLeft.clearInput();
+  sensorLeft.stopRanging();
 }
 
 void read_right_sensor(){
-
+  while(!sensorRight.checkForDataReady()) delay(1);
+  int distance_front = sensorRight.getDistance();
+  sensorRight.clearInput();
+  sensorRight.stopRanging();
 }
 
 void read_sensors(){
+  sensorFront.startRanging();
+  sensorLeft.startRanging();
+  sensorRight.startRanging();
 
+  read_front_sensor();
+  read_left_sensor();
+  read_right_sensor();
 }
 
+void find_walls(){
+  if (distance_front < FRONT_THRESHOLD_DISTANCE){
+    //add wall into array
+  }
+  if (distance_left < SIDE_DISTANCE_THRESHOLD){
+    //add wall into array
+  }
+  if(distance_right < SIDE_DISTANCE_THRESHOLD){
+    //add wall into array
+  }
+}
+
+//Function that holds the logic for turning and heading reassignment
+void redirect(){
+  //if () return; //logic for when lowest weight square is forward
+  int min_val = 255;
+  int best_dir = -1;
+
+  int dx[] = {0, 1, 0, -1};
+  int dy[] = {1, 0, -1, 0};
+
+    // Check all 4 neighbours
+  for (int d_check = 0; d_check < 4; d_check++) {
+    int nx = mouse_x + dx[d_check];
+    int ny = mouse_y + dy[d_check];
+    if (nx >= 0 && nx < MAZE_DIMENSION && ny >= 0 && ny < MAZE_DIMENSION) {
+    // If path is clear in memory
+      if (!wall_in_direction(wall_location[mouse_x][mouse_y], d_check)) {
+        if (weight[nx][ny] < min_val || (weight[nx][ny] == min_val && d_check == mouse_direction)) { // preference going straight to prevent getting stuck
+          min_val = weight[nx][ny];
+          best_dir = d_check;
+        }
+      }
+    }
+  }
+
+  if (best_dir != -1) {
+    // Turn to face best direction
+    if (best_dir == mouse_direction) {
+    // already facing right way
+    } else if (best_dir == (mouse_direction + 1) % 4) {
+        turnRight();
+        target_heading = target_heading - 90; 
+      } else if (best_dir == (mouse_direction + 3) % 4) {
+          turnLeft();
+          target_heading = target_heading + 90;
+        } else {
+          turnRight();
+          turnRight();
+          target_heading = target_heading + 180;
+        }
+    }
+}
 void stop(){
   digitalWrite(LEFT_MOTOR_1,LOW);
   digitalWrite(LEFT_MOTOR_2,LOW);
@@ -179,6 +252,7 @@ void stop(){
 Event update_event(){
   Event yaw = update_gyro();
   Event position = update_sensors();
+  Event direction = 
 
   if(yaw != EventNo) return yaw;
   if (position != EventNo) return position;
@@ -211,6 +285,12 @@ State transition(State state, Event event){
       if(event == EventFinish) return StateFinish;
       if(event != EventBlocked) return StateForward;
       break;
+    case StateNewCell:
+      stop();
+      find_walls();
+      update_weight();
+      redirect();
+
   }
   return state;
 }
