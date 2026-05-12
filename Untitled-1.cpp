@@ -1,0 +1,212 @@
+/*
+EXPLANATION:
+So as far as I understand the gyroscope works by returning integer values which correspond to angular velocity about each of the axes.
+These values are in LSB (least significant bits) which seems to pretty much be a really raw reading that needs to be converted similar to an ultrasonic sensor.
+I dont know exactly how it comes up with that data as in what is going on inside the gyroscope but that isnt too important i dont think.
+CONVERSION:
+Exactly what value we use to convert the raw data to usable angular momentum values seems to depend on the speed of the micromouse.
+*/
+
+#include <MPU6050.h>
+#include <iostream>
+
+//PIN DEFINITIONS
+#define IR_SENSOR_LEFT
+#define IR_SENSOR_LEFT_INPUT
+#define IR_SENSOR_LEFT_OUTPUT
+
+#define IR_SENSOR_FRONT
+#define IR_SENSOR_FRONT_INPUT
+#define IR_SENSOR_FRONT_OUTPUT
+
+#define IR_SENSOR_FRONT
+#define IR_SENSOR_LEFT_INPUT
+#define IR_SENSOR_LEFT_OUTPUT
+
+//MOTOR PINS
+#define LEFT_MOTOR_1
+#define LEFT_MOTOR_2
+#define RIGHT_MOTOR_1
+#define RIGHT_MOTOR_2
+
+//DISTANCE RELATED TO WHEEL ENCODERS
+#define PULSES_PER_REVOLUTION 12
+
+//DEFINING ACCEPTABLE ERRORS
+#define ACCEPTABLE_HEADING_ERROR 0
+
+//Defining some things for l8er
+#define base_speed (whatever we want)
+#define cell_length 18
+#define mm_per_tick (need this value)
+
+MPU6050 gyro;
+
+//STATES & SUCH
+enum State {
+  StateFinished,
+  StateForward,
+  StateTurn,
+  StateAdjust,
+  StateCentre
+};
+
+State currentState = StateForward;
+
+enum Event{
+  EventBegin,
+  EventFinish,
+  EventOffCentre,
+  EventCrooked,
+  EventBlocked,
+  EventNone
+};
+
+//Defining variables
+
+unsigned long last_gyro_time = 0; // used for tracking the previous time in terms of the arduino clock that the gyro last measured at
+float current_heading = 0; //angle at which the micromouse is travelling, 0 being straight forward
+float gyro_z_offset = 0; //rotational velocity gyro reads while stationary
+float target_heading = 0; //the heading the micromouse is supposed to travel at
+
+//Determing the reading whilst stationary so that the gyro may be more accurate
+
+void calibrate_gyro() {
+  long sum = 0;
+  for (int i = 0; i < 500; i++){
+    z_calibrate = gyro.GetRotationZ();
+    sum += z_calibrate;
+    delay(2); //this delay along with the for loop means that it takes 500 measurments of angular velocity across the span of 1 second, can be altered to increase or decrease accuracy as needed
+  }
+  gyro_z_offset = (float)sum /500; //takes the average of those 500 readings to determine the defualt angular velocity reading
+}
+
+//Reading sensor
+
+Event update_gyro() {
+  unsigned long arduino_time = micros();  //micros is an arduino function that keeps track of time since the arduino was turned on in microseconds
+  float time_elapsed = (arduino_time - last_gyro_time)/1e6f; //pretty simple, just finding the time between readings, dividing by 10^6 is converting microseconds to seconds.
+  last_gyro_time = arduino_time; 
+  int z_rotation_raw = gyro.GetRotationZ(); //raw data for rotation about the z axis
+  float yaw = ((float)z_rotation_raw - gyro_z_offset) / 131.0f; //adjusts for the actual rotation by subtracting the stationary reading and dividing by 131 to give rotation in degrees per second
+  if (abs(yaw) < 0.5){ 
+    yaw = 0;
+  }
+  current_heading += yaw * time_elapsed;
+  if (current_heading > ACCEPTABLE_HEADING_ERROR){
+    return EventCrooked;
+  }
+  return EventNone;
+}
+
+//constants for adjusting the value of the correction needed for the heading to be adjusted at a speed variable to how close it is to the target heading
+#define correction_constant 1
+#define braking_constant 1
+
+//Function for determing the angular correction needed
+
+float heading_correction (float time_elapsed){ 
+  float error = target_heading - current_heading; //figures out the difference in angle between desired and actual direction
+// adjusts the error so that the mouse doesnt turn on the obtuse angle
+  while(error >= 180.0f) {
+    error -= 360.0f;
+  }
+  while(error < 180) {
+    error += 360.0f;
+  }
+  float error_speed = (error - previous_error) / time_elapsed; //taking the derivative of the error to see how fast the discrepancy in error is changing, later used to ensure smooth correction
+  previous_error = error;
+  return (correction_constant * error) + (braking_constant * error_speed);
+}
+
+//fairly self explanatory, function for changing motor speed to account for error in heading
+
+void adjust_heading(){
+  float correction = heading_correction(time_elapsed);
+  int left_pwm = base_speed + correction;
+  int right_pwm = base_speed - correction;
+  AnalogWrite(LEFT_MOTOR, left_pwm);
+  AnalogWrite(RIGHT_MOTOR, right_pwm);
+}
+
+//function for driving forward
+
+float forward_distance_travelled = 0.0f; //variable for keeping track of distance travelled
+
+void drive_forward(){
+  distance_travelled = 0.0f; //resetting the variable of distance travelled as this function deals with a single cell at a time
+  while (distance_travelled < cell_length){
+    update_gyro();
+    // tracking distance
+    int ticks_left = (need function for left wheel encoder);
+    int ticks_right = (need function for right wheel encoder);
+    float left_distance = ticks_left * mm_per_tick;
+    float right_distance = ticks_right * mm_per_tick;
+    float centre_distance = (left_distance + right_distance)/2;
+    distance_travelled += centre_distance;
+  
+    //correcting the heading
+    adjust_heading();
+  }
+}
+
+void stop(){
+  digitalWrite(LEFT_MOTOR_1,LOW);
+  digitalWrite(LEFT_MOTOR_2,LOW);
+  digitalWrite(RIGHT_MOTOR_1,LOW);
+  digitalWrite(RIGHT_MOTOR_2,LOW);
+}
+
+Event update_event(){
+  Event yaw = update_gyro();
+}
+
+void do_thing(){
+
+}
+
+
+
+State transition(State state, Event event){
+  switch(state){
+    case StateForward:
+      if(event == EventFinish) return StateFinish;
+      if(event == EventCrooked) return StateAdjust;
+      if(event == EventOffCentre) return StateCentre;
+      if(event == EventBlocked) return StateTurn;
+      break;
+    case StateAdjust:
+      if(event == EventFinish) return StateFinish;
+      if(event != EventCrooked) return StateForward;
+      break;
+    case StateCentre:
+      if(event == EventFinish) return StateFinish;
+      if(event != EventOffCentre) return StateForward;
+      break;
+    case StateTurn:
+      if(event == EventFinish) return StateFinish;
+      if(event != EventBlocked) return StateForward;
+      break;
+  }
+  return state;
+}
+
+
+void setup() {
+  
+
+}
+
+void loop() {
+  Event event = update_event();
+
+  current_state = transition(current_state, event);
+
+  do_thing(current_state);
+  
+}
+
+  
+  
+
+//Im tired ill do more later
