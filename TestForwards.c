@@ -71,6 +71,8 @@ Calculates the weight of each cell
 
 This calculation is done using BFS seeded from the center 4 nodes
 This is *not* the same as mouse doing an exhaustive search using BFS seeded from the starting point
+
+
 */
 void flood_fill()
 {
@@ -94,7 +96,11 @@ void flood_fill()
     int dx[] = {0, 1, 0, -1}; //possibly could be a smaller data type to save storage
     int dy[] = {1, 0, -1, 0};
 
-    //BFS algorithm
+    /*
+    BFS algorithm
+    From a Python program by @alfredjoejr on Github: https://github.com/alfredjoejr/mms-python/blob/main/Main.py
+    Translated into C using Claude
+    */
     while (head != tail) {
         Cell c = dequeue(&head);
         uint8_t current_weight = weight[c.x][c.y];
@@ -117,6 +123,8 @@ void flood_fill()
 
 /*
 Move to the neighbour with the lowest cost
+From a Python program by @alfredjoejr on Github: https://github.com/alfredjoejr/mms-python/blob/main/Main.py
+Translated into C using Claude
 */
 void move_best_step()
 {
