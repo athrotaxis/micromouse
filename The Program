@@ -135,23 +135,103 @@ void adjust_heading(){
   AnalogWrite(RIGHT_MOTOR, right_pwm);
 }
 
+//WHEEL ENCODERS
+//Declaring variables
+volatile int left_pulses = 0;
+volatile unsigned long last_left_pulse_time = 0;
+volatile unsigned long left_pulse_time = 0;
+volatile int right_pulses = 0;
+volatile unsigned long last_right_pulse_time = 0;
+volatile unsigned long right_pulse_time = 0;
+
+//Interrupt functions
+void left_encoder_addition() {
+  unsigned long present = micros();
+  left_pulse_time = present - last_left_pulse_time;
+  last_left_pulse_time = present;
+  left_pulses++;
+}
+
+void right_encoder_addition() {
+  unsigned long present = micros();
+  right_pulse_time = present - last_right_pulse_time;
+  last_right_pulse_time = present;
+  right_pulses++;
+}
+
+//Function for determining the speed at which the wheels are moving version a (two buckets approach)
+float wheel_speed_a(volatile unsigned long &pulse_time, volatile unsigned long &pulse_interval, volatile unsigned long &last_pulse_time, volatile unsigned long &last_speed_check) {
+  noInterrupts();
+  unsigned long count snapshot = pulse_count;
+  unsigned long interval_snapshot = pulse_interval;
+  unsigned long last_time_snapshot = last_pulse_time;
+  interrupts();
+
+  unsigned long time_since_last_pulse = micros() - last_time_snapshot;
+
+  //more than one pulse since last speed check, is fine
+  if (count_snapshot >= 2) {
+    return (count_snapshot * mm_per_tick)/(last_speed_check/1e6f);
+  }
+
+  if (count_snapshot == 1 && interval_snapshot > 0) {
+    return (mm_per_tick)/(interval_snapshot/ 1e6f);
+  }
+
+  if (time_since_last_pulse > STOPPED_THRESHOLD){
+    return 0.0f;
+  }
+  
+  return NaN;
+}
+
+//Same as above but version b (one bucket approach)
+float wheel_speed_b(volatile unsigned long &pulse_time, volatile unsigned long &pulse_interval, volatile unsigned long &last_pulse_time) {
+  noInterrupts();
+  unsigned long count snapshot = pulse_count;
+  unsigned long interval_snapshot = pulse_interval;
+  unsigned long last_time_snapshot = last_pulse_time;
+  interrupts();
+
+  unsigned long time_since_last_pulse = micros() - last_time_snapshot;
+
+  if (count_snapshot == 0){
+    if (time_since_last_pulse > STOPPED_THRESHOLD){
+      return 0.0f;
+    }
+    return NaN;
+  }
+  return (mm_per_tick / (interval_snapshot / 1e6f));
+}
+
 //function for driving forward
 
 float forward_distance_travelled = 0.0f; //variable for keeping track of distance travelled
 
 void drive_forward(){
+
+  //reading the pulse counts
+  noInterrupts();
+  int left_snapshot = left_pulses;
+  int right_snapshot = right_pulses;
+  left_pulses  = 0;
+  right_pulses = 0;
+  interrupts();
+
   distance_travelled = 0.0f; //resetting the variable of distance travelled as this function deals with a single cell at a time
   while (distance_travelled < cell_length){
     update_gyro();
     // tracking distance
-    int ticks_left = (need function for left wheel encoder);
-    int ticks_right = (need function for right wheel encoder);
-    float left_distance = ticks_left * mm_per_tick;
-    float right_distance = ticks_right * mm_per_tick;
+    //int ticks_left = (need function for left wheel encoder);
+    //int ticks_right = (need function for right wheel encoder);
+    float left_distance = left_snapshot * mm_per_tick;
+    float right_distance = right_snapshot * mm_per_tick;
     float centre_distance = (left_distance + right_distance)/2;
     distance_travelled += centre_distance;
   
-    //correcting the heading
+    left_snapshot = 0;
+    right_snapshot = 0;
+    //correcting the heading  
     adjust_heading();
   }
 }
@@ -160,13 +240,13 @@ void turn(float turn_angle){
   if (turn_angle > current_heading){
     while (current_heading <= abs(turn_angle)){
       update_gyro();
-
+      //need something that can make the robot turn
     }
   }
   if (turn_angle < current_heading){
     while (current_heading >= abs(turn_angle)){
       update_gyro();
-      
+      //need something that can make the robot turn
     }
   }
 }
@@ -378,6 +458,10 @@ void setup() {
   delay(10);
   sensorRight.begin();
   sensorRight.setI2CAddress(RIGHT_ADDRESS);
+
+  //creating the interrupts for the wheel encoder functions
+  attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_PIN), left_encoder_addition, RISING);
+  attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_PIN), right_encoder_addition, RISING);
 
 }
 
