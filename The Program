@@ -32,6 +32,9 @@ Exactly what value we use to convert the raw data to usable angular momentum val
 //DISTANCE RELATED TO WHEEL ENCODERS
 #define PULSES_PER_REVOLUTION 12
 
+//TIME THRESHOLD BEFORE WHEEL IS CONSIDERED STOPPED
+#define STOPPED_THRESHOLD 
+
 //DEFINING ACCEPTABLE ERRORS
 #define ACCEPTABLE_HEADING_ERROR 0
 
@@ -204,6 +207,20 @@ float wheel_speed_b(volatile unsigned long &pulse_time, volatile unsigned long &
   return (mm_per_tick / (interval_snapshot / 1e6f));
 }
 
+float left_speed_estimate = 0.0f;
+float right_speed_estimate = 0.0f;
+//simply gets the speeds for both wheels
+void update_speeds(unsigned long &last_speed_check) {
+  float l = get_wheel_speed_b(left_pulse_time, left_pulse_interval, last_left_pulse_time, pulse_interval);
+  float r = get_wheel_speed_b(right_pulse_time, right_pulse_interval, pulse_interval);
+
+  if (!isnan(l)){
+    left_speed_estimate = l;
+  }
+  if (!isnan(r)){
+    right_speed_estimate = r;
+  }
+}
 //wheel encoders
 volatile int left_pulses = 0;
 volatile int right_pulses = 0;
