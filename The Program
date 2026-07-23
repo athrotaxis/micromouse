@@ -204,6 +204,16 @@ float wheel_speed_b(volatile unsigned long &pulse_time, volatile unsigned long &
   return (mm_per_tick / (interval_snapshot / 1e6f));
 }
 
+//wheel encoders
+volatile int left_pulses = 0;
+volatile int right_pulses = 0;
+void left_encoder_addition{
+  left_pulses++;
+}
+
+void right_encoder_addition{
+  right_pulses++;
+}
 //function for driving forward
 
 float forward_distance_travelled = 0.0f; //variable for keeping track of distance travelled
