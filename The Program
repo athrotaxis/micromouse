@@ -22,7 +22,6 @@ Exactly what value we use to convert the raw data to usable angular momentum val
 #define LEFT_ADDRESS 0x30
 #define RIGHT_ADDRESS 0x31
 
-
 //MOTOR PINS
 #define LEFT_MOTOR_1
 #define LEFT_MOTOR_2
@@ -46,6 +45,13 @@ Exactly what value we use to convert the raw data to usable angular momentum val
 //Defining distances so that the mouse knows if the wall it is detecting is the wall associated with the cell its in or not
 #define FRONT_WALL_THRESHOLD
 #define SIDE_WALL_THRESHOLD
+
+//PID Constants
+#define Kp 1
+#define Ki 1
+#define Kd 1
+
+#define TARGET_SPEED 100 //placeholder
 
 MPU6050 gyro;
 SFEVL53L1X sensorFront, sensorLeft, sensorRight;
@@ -207,18 +213,18 @@ float wheel_speed_b(volatile unsigned long &pulse_time, volatile unsigned long &
   return (mm_per_tick / (interval_snapshot / 1e6f));
 }
 
-float left_speed_estimate = 0.0f;
-float right_speed_estimate = 0.0f;
+float left_speed = 0.0f;
+float right_speed = 0.0f;
 //simply gets the speeds for both wheels
-void update_speeds(unsigned long &last_speed_check) {
-  float l = get_wheel_speed_b(left_pulse_time, left_pulse_interval, last_left_pulse_time, pulse_interval);
-  float r = get_wheel_speed_b(right_pulse_time, right_pulse_interval, pulse_interval);
+void update_speeds() {
+  float left_speed_calculated = get_wheel_speed_b(left_pulse_time, left_pulse_interval, last_left_pulse_time, pulse_interval);
+  float right_speed_calculated = get_wheel_speed_b(right_pulse_time, right_pulse_interval, last_right_pulse_time, pulse_interval);
 
-  if (!isnan(l)){
-    left_speed_estimate = l;
+  if (!isnan(left_speed_calculated)){
+    left_speed = left_speed_calculated;
   }
-  if (!isnan(r)){
-    right_speed_estimate = r;
+  if (!isnan(right_speed_calculated)){
+    right_speed = right_speed_calculated;
   }
 }
 //wheel encoders
@@ -231,11 +237,59 @@ void left_encoder_addition{
 void right_encoder_addition{
   right_pulses++;
 }
+
+//PID control stuff, defining the type
+struct PIDStuff {
+  float Kp, Ki, Kd;
+  float integral = 0;
+  float last_error = 0;
+};
+
+//Arrays for the various case dependant constants as well as defining the objects for the 3 cases
+PIDStuff left_motor = {1, 1, 1};
+PIDStuff right_motor = {1, 1, 1};
+PIDStuff motor_sync = {1, 1, 1}; //will introduce the motor sync PID stuff l8er
+
+//function that actually does the PID calculation
+float update_PID (PIDStuff &pid, float target_speed, float actual_speed, float time_elapsed){ 
+  float error = target_speed - actual_speed; //calculate discrepancy in speed
+  float proportional_term = pid.Kp * error; //calculate the first term of the PID equation
+  pid.integral += error * time_elapsed; //calculate the second term of the equation and add it to the stored memory
+  float integral_term = pid.Ki * pid.integral; //applies the coefficient to the integral term
+  float derivative_term = pid.Kd * (error - pid.last_error) / time_elapsed; //calculates the 3rd term which uses the stored value for the previous error
+  pid.last_error = error; 
+  
+  return proportional_term + integral_term + derivative_term; //sums the 3 terms together to give the pwm adjustment
+}
+
+void drive_nonchalantly(){
+  //getting the speeds for each wheel
+  update_speeds();
+
+  //getting the pwm adjustments for each wheel
+  float time_elapsed = time_passed();
+  float left_adjustment = update_PID(left_motor, TARGET_SPEED, left_speed, time_elapsed);
+  float right_adjustment = update_PID(right_motor, TARGET_SPEED, right_speed, time_elapsed);
+  //put in the motor sync stuff later
+
+  analogWrite(LEFT_MOTOR, constrain(TARGET_SPEED + left_adjustment, 0, 255));
+  analogWrite(RIGHT_MOTOR, constrain(TARGET_SPEED + right_adjustment, 0, 255));
+}
+
+//function used for determing the time between speed adjustments
+unsigned long last_time = 0;
+float time_passed() {
+  unsigned long now = micros();
+  float time_its_been = (now - last_time) / 1e6f;
+  last_time = now;
+  return time_its_been;
+}
 //function for driving forward
 
 float forward_distance_travelled = 0.0f; //variable for keeping track of distance travelled
 
-void drive_forward(){
+//OLD drive forward function
+/*void drive_forward(){
 
   //reading the pulse counts
   noInterrupts();
@@ -261,7 +315,7 @@ void drive_forward(){
     //correcting the heading  
     adjust_heading();
   }
-}
+}*/
 
 void turn(float turn_angle){
   if (turn_angle > current_heading){
