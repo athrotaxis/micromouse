@@ -1,0 +1,88 @@
+#include <Wire.h>
+#include "SparkFun_VL53L1X.h"
+
+//PIN DEFINITIONS
+//Sensors
+#define XSHUT_FRONT 
+#define XSHUT_LEFT  
+#define XSHUT_RIGHT
+
+#define FRONT_ADDRESS 0x29
+#define LEFT_ADDRESS 0x30
+#define RIGHT_ADDRESS 0x31
+
+SFEVL53L1X sensorFront, sensorLeft, sensorRight;
+
+void read_front_sensor(){
+  while(!sensorFront.checkForDataReady()) delay(1);
+  distance_front = sensorFront.getDistance();
+  sensorFront.clearInput();
+  sensorFront.stopRanging();
+}
+
+void read_left_sensor(){
+  while(!sensorLeft.checkForDataReady()) delay(1);
+  distance_left = sensorLeft.getDistance();
+  sensorLeft.clearInput();
+  sensorLeft.stopRanging();
+}
+
+void read_right_sensor(){
+  while(!sensorRight.checkForDataReady()) delay(1);
+  distance_right = sensorRight.getDistance();
+  sensorRight.clearInput();
+  sensorRight.stopRanging();
+}
+
+void read_sensors(){
+  sensorFront.startRanging();
+  sensorLeft.startRanging();
+  sensorRight.startRanging();
+
+  read_front_sensor();
+  read_left_sensor();
+  read_right_sensor();
+}
+
+void setup (){
+    //SENSORS
+  Wire.begin();
+
+  //Setting up sensors to output and powering them down
+  pinMode(XSHUT_FRONT, OUTPUT);
+  pinMode(XSHUT_LEFT, OUTPUT);
+  pinMode(XSHUT_RIGHT, OUTPUT);
+
+  digitalWrite(XSHUT_FRONT, LOW);
+  digitalWrite(XSHUT_LEFT, LOW);
+  digitalWrite(XSHUT_RIGHT, LOW);
+  delay(10);
+
+  //Individually powering on sensors and assigning them their appropriate address
+  digitalWrite(XSHUT_FRONT, HIGH);
+  delay(10);
+  sensorFront.begin();
+
+  digitalWrite(XSHUT_LEFT, HIGH);
+  delay(10);
+  sensorLeft.begin();
+  sensorLeft.setI2CAddress(LEFT_ADDRESS);
+
+  digitalWrite(XSHUT_RIGHT, HIGH);
+  delay(10);
+  sensorRight.begin();
+  sensorRight.setI2CAddress(RIGHT_ADDRESS);
+
+  Serial.begin(115200);
+}
+
+void loop() {
+    read_sensors();
+    serial.print("Front Sensor: ");
+    serial.print(distance_front);
+    serial.print(" Left Sensor: "); 
+    serial.print(distance_left);
+    serial.print(" Right Sensor: ");
+    serial.println(distance_right);
+    delay(10000);
+}
