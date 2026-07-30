@@ -1,0 +1,122 @@
+  #include <Wire.h>
+  #include "SparkFun_VL53L1X.h"
+
+  //PIN DEFINITIONS
+  //Sensors
+  #define XSHUT_FRONT 18
+  #define XSHUT_LEFT 23
+  #define XSHUT_RIGHT 19
+
+  #define FRONT_ADDRESS 0x32
+  #define LEFT_ADDRESS 0x30
+  #define RIGHT_ADDRESS 0x31
+
+  SFEVL53L1X sensorFront, sensorLeft, sensorRight;
+  float distance_front = 0;
+  float distance_left = 0;
+  float distance_right = 0;
+
+  void read_front_sensor(){
+    while(!sensorFront.checkForDataReady()) delay(1);
+    distance_front = sensorFront.getDistance();
+    sensorFront.clearInterrupt();
+    sensorFront.stopRanging();
+  }
+
+  void read_left_sensor(){
+    while(!sensorLeft.checkForDataReady()) delay(1);
+    distance_left = sensorLeft.getDistance();
+    sensorLeft.clearInterrupt();
+    sensorLeft.stopRanging();
+  }
+
+  void read_right_sensor(){
+    while(!sensorRight.checkForDataReady()) delay(1);
+    distance_right = sensorRight.getDistance();
+    sensorRight.clearInterrupt();
+    sensorRight.stopRanging();
+  }
+
+  void read_sensors(){
+    sensorFront.startRanging();
+    sensorLeft.startRanging();
+    sensorRight.startRanging();
+
+    read_front_sensor();
+    read_left_sensor();
+    read_right_sensor();
+  }
+
+  //function for debugging
+  void scanI2C() {
+    Serial.println("Scanning I2C bus...");
+    for (byte addr = 1; addr < 127; addr++) {
+      Wire.beginTransmission(addr);
+      if (Wire.endTransmission() == 0) {
+        Serial.print("Found device at 0x");
+        Serial.println(addr, HEX);
+      }
+    }
+  }
+
+  void setup (){
+    Wire.begin();
+
+    //Setting up sensors to output and powering them down
+    pinMode(XSHUT_FRONT, OUTPUT);
+    pinMode(XSHUT_LEFT, OUTPUT);
+    pinMode(XSHUT_RIGHT, OUTPUT);
+
+    digitalWrite(XSHUT_FRONT, LOW);
+    digitalWrite(XSHUT_LEFT, LOW);
+    digitalWrite(XSHUT_RIGHT, LOW);
+    delay(10);
+
+    //Individually powering on sensors and assigning them their appropriate address
+    digitalWrite(XSHUT_FRONT, HIGH);
+    delay(10);
+    int status = sensorFront.begin();
+    if (status != 0) {
+      Serial.print("Front sensor begin failed, error: ");
+      Serial.println(status);
+    }
+    sensorFront.setI2CAddress(FRONT_ADDRESS << 1);
+    
+    
+    digitalWrite(XSHUT_LEFT, HIGH);
+    delay(10);
+    status = sensorLeft.begin();
+    if (status != 0) {
+      Serial.print("left sensor begin failed, error: ");
+      Serial.println(status);
+    }
+    sensorLeft.setI2CAddress(LEFT_ADDRESS << 1);
+    
+    
+
+    digitalWrite(XSHUT_RIGHT, HIGH);
+    delay(10);
+    status = sensorRight.begin();
+    if (status != 0) {
+      Serial.print("right sensor begin failed, error: ");
+      Serial.println(status);
+    }
+    sensorRight.setI2CAddress(RIGHT_ADDRESS << 1);
+    
+    Serial.begin(115200);
+    delay(100);
+    scanI2C();
+  }
+
+
+  void loop() {
+      read_sensors();
+      Serial.print("Front Sensor: ");
+      Serial.print(distance_front);
+      Serial.print(" Left Sensor: ");
+      Serial.print(distance_left);
+      Serial.print(" Right Sensor: ");
+      Serial.println(distance_right);
+      delay(1000);
+
+  }
