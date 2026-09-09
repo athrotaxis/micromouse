@@ -152,6 +152,7 @@ volatile unsigned long last_right_pulse_time = 0;
 volatile unsigned long right_pulse_time = 0;
 
 //Interrupt functions
+//might be too much lines in this
 void left_encoder_addition() {
   unsigned long present = micros();
   left_pulse_time = present - last_left_pulse_time;
@@ -358,7 +359,7 @@ void redirect(){
   int dx[] = {0, 1, 0, -1};
   int dy[] = {1, 0, -1, 0};
 
-    // Check all 4 neighbours
+  // Check all 4 neighbours
   for (int d_check = 0; d_check < 4; d_check++) {
     int nx = mouse_x + dx[d_check];
     int ny = mouse_y + dy[d_check];
@@ -508,6 +509,31 @@ void setup() {
   //creating the interrupts for the wheel encoder functions
   attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_PIN), left_encoder_addition, RISING);
   attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_PIN), right_encoder_addition, RISING);
+
+  //Initialise maze arrays
+  for (uint8_t i=0; i < MAZE_DIMENSION; i++) {
+        for (uint8_t j=0; j < MAZE_DIMENSION; j++) {
+            weight[i][j] = 255; //initialise to infinity for some reason not sure?
+            wall_location[i][j].north = false;
+            wall_location[i][j].east = false;
+            wall_location[i][j].south = false;
+            wall_location[i][j].west = false;
+        }
+    }
+    
+    //Set center positions
+    weight[7][7] = 0;
+    weight[7][8] = 0;
+    weight[8][7] = 0;
+    weight[8][8] = 0;
+
+    for (int i = 0; i<16; i++) {
+        for (int j=0; j<16; j++) {
+            visited[i][j] = false; //initialise array of visited cells
+        }
+    }
+
+
 
 }
 
