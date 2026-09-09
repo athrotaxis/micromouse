@@ -51,6 +51,8 @@ Exactly what value we use to convert the raw data to usable angular momentum val
 #define Ki 1
 #define Kd 1
 
+#define WALL_DISTANCE 2.45
+
 #define TARGET_SPEED 100 //placeholder
 
 MPU6050 gyro;
@@ -213,8 +215,7 @@ float wheel_speed_b(volatile unsigned long &pulse_time, volatile unsigned long &
   return (mm_per_tick / (interval_snapshot / 1e6f));
 }
 
-float left_speed = 0.0f;
-float right_speed = 0.0f;
+
 //simply gets the speeds for both wheels
 void update_speeds() {
   float left_speed_calculated = get_wheel_speed_b(left_pulse_time, left_pulse_interval, last_left_pulse_time, pulse_interval);
@@ -227,16 +228,7 @@ void update_speeds() {
     right_speed = right_speed_calculated;
   }
 }
-//wheel encoders
-volatile int left_pulses = 0;
-volatile int right_pulses = 0;
-void left_encoder_addition{
-  left_pulses++;
-}
 
-void right_encoder_addition{
-  right_pulses++;
-}
 
 //PID control stuff, defining the type
 struct PIDStuff {
@@ -276,6 +268,16 @@ void drive_nonchalantly(){
   analogWrite(RIGHT_MOTOR, constrain(TARGET_SPEED + right_adjustment, 0, 255));
 }
 
+void sense_lr (){
+  sensorLeft.startRanging();
+  sensorRight.startRanging();
+
+  l_dist = sensorLeft.getDistance();
+  r_dist = sensorRight.getDistance();
+
+  
+}
+
 //function used for determing the time between speed adjustments
 unsigned long last_time = 0;
 float time_passed() {
@@ -287,65 +289,6 @@ float time_passed() {
 //function for driving forward
 
 float forward_distance_travelled = 0.0f; //variable for keeping track of distance travelled
-
-//OLD drive forward function
-/*void drive_forward(){
-
-  //reading the pulse counts
-  noInterrupts();
-  int left_snapshot = left_pulses;
-  int right_snapshot = right_pulses;
-  left_pulses  = 0;
-  right_pulses = 0;
-  interrupts();
-
-  distance_travelled = 0.0f; //resetting the variable of distance travelled as this function deals with a single cell at a time
-  while (distance_travelled < cell_length){
-    update_gyro();
-    // tracking distance
-    //int ticks_left = (need function for left wheel encoder);
-    //int ticks_right = (need function for right wheel encoder);
-    float left_distance = left_snapshot * mm_per_tick;
-    float right_distance = right_snapshot * mm_per_tick;
-    float centre_distance = (left_distance + right_distance)/2;
-    distance_travelled += centre_distance;
-  
-    left_snapshot = 0;
-    right_snapshot = 0;
-    //correcting the heading  
-    adjust_heading();
-  }
-}*/
-
-void turn(float turn_angle){
-  if (turn_angle > current_heading){
-    while (current_heading <= abs(turn_angle)){
-      update_gyro();
-      //need something that can make the robot turn
-    }
-  }
-  if (turn_angle < current_heading){
-    while (current_heading >= abs(turn_angle)){
-      update_gyro();
-      //need something that can make the robot turn
-    }
-  }
-}
-//IR SENSORS (returns distance in mm)
-
-void read_front_sensor(){
-  while(!sensorFront.checkForDataReady()) delay(1);
-  int distance_front = sensorFront.getDistance();
-  sensorFront.clearInput();
-  sensorFront.stopRanging();
-}
-
-void read_left_sensor(){
-  while(!sensorLeft.checkForDataReady()) delay(1);
-  int distance_left = sensorLeft.getDistance();
-  sensorLeft.clearInput();
-  sensorLeft.stopRanging();
-}
 
 void read_right_sensor(){
   while(!sensorRight.checkForDataReady()) delay(1);
