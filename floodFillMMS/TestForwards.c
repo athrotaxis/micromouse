@@ -37,8 +37,6 @@ typedef struct {
     int x, y;
 } Cell;
 
-
-
 bool visited[MAZE_DIMENSION][MAZE_DIMENSION];
 
 bool wall_in_direction(walls w, int d) {
@@ -93,7 +91,7 @@ void flood_fill()
     }
     
     //4 possible directions of movement of mouse which are used to change the x and y coordinate of the locaiton being looked at
-    int dx[] = {0, 1, 0, -1}; //possibly could be a smaller data type to save storage
+    int dx[] = {0, 1, 0, -1}; 
     int dy[] = {1, 0, -1, 0};
 
     /*
