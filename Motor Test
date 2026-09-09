@@ -1,0 +1,45 @@
+// Sequential pin definitions matching your new physical layout down the board
+#include <Arduino.h>
+#define pinSTBY 18
+#define pinAIN1 23
+#define pinAIN2 19
+#define pinPWMA 16
+#define pinBIN1 14
+#define pinBIN2 26
+#define pinPWMB 25
+
+void setup() {
+  // Initialize all motor pins sequentially as Outputs
+  pinMode(pinPWMA, OUTPUT);
+  pinMode(pinAIN2, OUTPUT);
+  pinMode(pinAIN1, OUTPUT);
+  pinMode(pinSTBY, OUTPUT);
+  pinMode(pinBIN1, OUTPUT);
+  pinMode(pinBIN2, OUTPUT);
+  pinMode(pinPWMB, OUTPUT);
+  // Take the driver out of low-power standby mode
+  digitalWrite(pinSTBY, HIGH);
+  Serial.begin(9600);
+  Serial.println("Setup done, STBY set HIGH");
+}
+  
+void loop() {
+  Serial.println("Motor A forward");
+  digitalWrite(pinAIN1, HIGH);
+  digitalWrite(pinAIN2, LOW);
+  analogWrite(pinPWMA, 150);
+  delay(2000);
+  // Brake Motor A
+  // analogWrite(pinPWMA, 0);
+  // delay(500);
+  // // --- TEST MOTOR B ---
+  // // Spin Forward at half speed
+  // Serial.println("Motor B forward");
+  // digitalWrite(pinBIN1, HIGH);
+  // digitalWrite(pinBIN2, LOW);
+  // analogWrite(pinPWMB, 150);
+  // delay(2000);
+  // // Brake Motor B
+  // analogWrite(pinPWMB, 0);
+  // delay(3000); // Pause before restarting the loop
+}  
