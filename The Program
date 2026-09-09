@@ -1,11 +1,3 @@
-/*
-EXPLANATION:
-So as far as I understand the gyroscope works by returning integer values which correspond to angular velocity about each of the axes.
-These values are in LSB (least significant bits) which seems to pretty much be a really raw reading that needs to be converted similar to an ultrasonic sensor.
-I dont know exactly how it comes up with that data as in what is going on inside the gyroscope but that isnt too important i dont think.
-CONVERSION:
-Exactly what value we use to convert the raw data to usable angular momentum values seems to depend on the speed of the micromouse.
-*/
 
 #include <MPU6050.h>
 #include <iostream>
@@ -99,7 +91,7 @@ void calibrate_gyro() {
 }
 
 //Reading sensor
-
+#define Kg 1
 Event update_gyro() {
   unsigned long arduino_time = micros();  //micros is an arduino function that keeps track of time since the arduino was turned on in microseconds
   float time_elapsed = (arduino_time - last_gyro_time)/1e6f; //pretty simple, just finding the time between readings, dividing by 10^6 is converting microseconds to seconds.
@@ -109,11 +101,15 @@ Event update_gyro() {
   if (abs(yaw) < 0.5){ 
     yaw = 0;
   }
-  current_heading += yaw * time_elapsed;
-  if (current_heading > ACCEPTABLE_HEADING_ERROR){
-    return EventCrooked;
-  }
-  return EventNone;
+  return yaw * Kg
+
+
+  //SLOP CODE
+  // current_heading += yaw * time_elapsed;
+  // if (current_heading > ACCEPTABLE_HEADING_ERROR){
+  //   return EventCrooked;
+  // }
+  // return EventNone;
 }
 
 //constants for adjusting the value of the correction needed for the heading to be adjusted at a speed variable to how close it is to the target heading
@@ -241,6 +237,7 @@ struct PIDStuff {
 PIDStuff left_motor = {1, 1, 1};
 PIDStuff right_motor = {1, 1, 1};
 PIDStuff motor_sync = {1, 1, 1}; //will introduce the motor sync PID stuff l8er
+PIDStuff heading_correction = {1, 1, 1};
 
 //function that actually does the PID calculation
 float update_PID (PIDStuff &pid, float target_speed, float actual_speed, float time_elapsed){ 
@@ -268,16 +265,41 @@ void drive_nonchalantly(){
   analogWrite(RIGHT_MOTOR, constrain(TARGET_SPEED + right_adjustment, 0, 255));
 }
 
+#define Kwall 1
+#define WALL_DISTANCE 5.95 //cm
+//uses sensor readings to feed into PD controller
 void sense_lr (){
   sensorLeft.startRanging();
   sensorRight.startRanging();
 
-  l_dist = sensorLeft.getDistance();
-  r_dist = sensorRight.getDistance();
+  int l_dist = sensorLeft.getDistance();
+  int r_dist = sensorRight.getDistance();
 
-  
+  int dist_wall = r_dist - l_dist;
+  if (abs(dist_wall) > WALL_DISTANCE){
+    int cells_off = round((dist_wall - WALL_DISTANCE)/CELL_LENGTH);  
+    if (dist_wall < 0){
+      dist_wall += cells_off * CELL_LENGTH;
+    }
+    else {
+      dist_wall -= cells_off * CELL_LENGTH;
+    }
+  }
+  return correction = Kwall * dist_wall;
+}
+int angular_velocity = 0; //this basically determines how fast the robot is meant to turn
+
+void turn_pwm (){
+  return turn_pwm = updatePID(heading_correction, angular_velocity, senselr(), update_gyro(), time_elapsed); //maybe look at seperating all the different time_elapsed's later 
 }
 
+//this is kinda larp need to integrate it with the
+void new_pwm (){
+  int left_pwm = base_speed + turn_pwm - forward_pwm;
+  int right_pwm = base_speed - turn_pwm + forward_pwm;
+  analogWrite(LEFT_MOTOR, constrain(left_pwm, 0, 255)); 
+  analogWrite(RIGHT_MOTOR, constrain(right_pwm, 0, 255));
+}
 //function used for determing the time between speed adjustments
 unsigned long last_time = 0;
 float time_passed() {
