@@ -32,7 +32,7 @@
 //Defining some things for l8er
 #define base_speed (whatever we want)
 #define cell_length 18
-#define mm_per_tick (need this value)
+#define mm_per_tick (32 * PI()) / 12 //mm
 
 //Defining distances so that the mouse knows if the wall it is detecting is the wall associated with the cell its in or not
 #define FRONT_WALL_THRESHOLD
@@ -92,7 +92,7 @@ void calibrate_gyro() {
 
 //Reading sensor
 #define Kg 1
-Event update_gyro() {
+float update_gyro() {
   unsigned long arduino_time = micros();  //micros is an arduino function that keeps track of time since the arduino was turned on in microseconds
   float time_elapsed = (arduino_time - last_gyro_time)/1e6f; //pretty simple, just finding the time between readings, dividing by 10^6 is converting microseconds to seconds.
   last_gyro_time = arduino_time; 
@@ -167,65 +167,40 @@ void right_encoder_addition() {
   right_pulses++;
 }
 
-//Function for determining the speed at which the wheels are moving version a (two buckets approach)
-float wheel_speed_a(volatile unsigned long &pulse_time, volatile unsigned long &pulse_interval, volatile unsigned long &last_pulse_time, volatile unsigned long &last_speed_check) {
+float left_speed = 0.0f;
+float right_speed = 0.0f;
+
+float wheel_speed(volatile unsigned long &pulse_time, volatile unsigned long &last_pulse_time) {
   noInterrupts();
-  unsigned long count snapshot = pulse_count;
-  unsigned long interval_snapshot = pulse_interval;
+  unsigned long interval_snapshot = pulse_time;
   unsigned long last_time_snapshot = last_pulse_time;
   interrupts();
 
   unsigned long time_since_last_pulse = micros() - last_time_snapshot;
 
-  //more than one pulse since last speed check, is fine
-  if (count_snapshot >= 2) {
-    return (count_snapshot * mm_per_tick)/(last_speed_check/1e6f);
+  if (time_since_last_pulse > STOPPED_THRESHOLD) {
+    return 0.0f; // no pulse in a while — actually stopped
   }
-
-  if (count_snapshot == 1 && interval_snapshot > 0) {
-    return (mm_per_tick)/(interval_snapshot/ 1e6f);
+  if (interval_snapshot == 0) {  own speed
   }
-
-  if (time_since_last_pulse > STOPPED_THRESHOLD){
-    return 0.0f;
-  }
-  
-  return NaN;
+  return mm_per_tick / (interval_snapshot / 1e6f);
 }
 
-//Same as above but version b (one bucket approach)
-float wheel_speed_b(volatile unsigned long &pulse_time, volatile unsigned long &pulse_interval, volatile unsigned long &last_pulse_time) {
-  noInterrupts();
-  unsigned long count snapshot = pulse_count;
-  unsigned long interval_snapshot = pulse_interval;
-  unsigned long last_time_snapshot = last_pulse_time;
-  interrupts();
-
-  unsigned long time_since_last_pulse = micros() - last_time_snapshot;
-
-  if (count_snapshot == 0){
-    if (time_since_last_pulse > STOPPED_THRESHOLD){
-      return 0.0f;
-    }
-    return NaN;
-  }
-  return (mm_per_tick / (interval_snapshot / 1e6f));
-}
-
-
-//simply gets the speeds for both wheels
 void update_speeds() {
-  float left_speed_calculated = get_wheel_speed_b(left_pulse_time, left_pulse_interval, last_left_pulse_time, pulse_interval);
-  float right_speed_calculated = get_wheel_speed_b(right_pulse_time, right_pulse_interval, last_right_pulse_time, pulse_interval);
+  float left_calc  = wheel_speed(left_pulse_time,  last_left_pulse_time);
+  float right_calc = wheel_speed(right_pulse_time, last_right_pulse_time);
 
-  if (!isnan(left_speed_calculated)){
-    left_speed = left_speed_calculated;
-  }
-  if (!isnan(right_speed_calculated)){
-    right_speed = right_speed_calculated;
-  }
+  if (!isnan(left_calc))  left_speed  = left_calc;
+  if (!isnan(right_calc)) right_speed = right_calc;
 }
 
+PIDStuff forward_pid = {1, 1, 1}; // separate PID memory, don't reuse left_motor/right_motor/heading_correction
+
+float forward_pwm_calc(float dt) {
+  update_speeds();                                  // refreshes left_speed / right_speed
+  float avg_speed = (left_speed + right_speed) / 2.0f;
+  return update_PID(forward_pid, TARGET_SPEED, avg_speed, dt);
+}
 
 //PID control stuff, defining the type
 struct PIDStuff {
@@ -238,7 +213,7 @@ struct PIDStuff {
 PIDStuff left_motor = {1, 1, 1};
 PIDStuff right_motor = {1, 1, 1};
 PIDStuff motor_sync = {1, 1, 1}; //will introduce the motor sync PID stuff l8er
-PIDStuff heading_correction = {1, 1, 1};
+PIDStuff turn_pid = {1, 1, 1};
 
 //function that actually does the PID calculation
 float update_PID (PIDStuff &pid, float target_speed, float actual_speed, float time_elapsed){ 
@@ -252,24 +227,10 @@ float update_PID (PIDStuff &pid, float target_speed, float actual_speed, float t
   return proportional_term + integral_term + derivative_term; //sums the 3 terms together to give the pwm adjustment
 }
 
-void drive_nonchalantly(){
-  //getting the speeds for each wheel
-  update_speeds();
-
-  //getting the pwm adjustments for each wheel
-  float time_elapsed = time_passed();
-  float left_adjustment = update_PID(left_motor, TARGET_SPEED, left_speed, time_elapsed);
-  float right_adjustment = update_PID(right_motor, TARGET_SPEED, right_speed, time_elapsed);
-  //put in the motor sync stuff later
-
-  analogWrite(LEFT_MOTOR, constrain(TARGET_SPEED + left_adjustment, 0, 255));
-  analogWrite(RIGHT_MOTOR, constrain(TARGET_SPEED + right_adjustment, 0, 255));
-}
-
 #define Kwall 1
 #define WALL_DISTANCE 5.95 //cm
 //uses sensor readings to feed into PD controller
-void sense_lr (){
+float sense_lr (){
   sensorLeft.startRanging();
   sensorRight.startRanging();
 
@@ -286,21 +247,25 @@ void sense_lr (){
       dist_wall -= cells_off * CELL_LENGTH;
     }
   }
-  return correction = Kwall * dist_wall;
-}
-int angular_velocity = 0; //this basically determines how fast the robot is meant to turn
-
-void turn_pwm (){
-  return turn_pwm = updatePID(heading_correction, angular_velocity, senselr(), update_gyro(), time_elapsed); //maybe look at seperating all the different time_elapsed's later 
+  return Kwall * dist_wall;
 }
 
-//this is kinda larp need to integrate it with the
-void new_pwm (){
-  int left_pwm = base_speed + turn_pwm - forward_pwm;
-  int right_pwm = base_speed - turn_pwm + forward_pwm;
-  analogWrite(LEFT_MOTOR, constrain(left_pwm, 0, 255)); 
+float turn_pwm (){
+  return update_PID(turn_pid, sense_lr(), update_gyro(), time_elapsed); //maybe look at seperating all the different time_elapsed's later 
+}
+
+void new_pwm() {
+  float dt = time_passed();       
+  float turn_correction = turn_pwm(dt);
+  float forward_pwm = forward_pwm_calc(dt);
+
+  int left_pwm  = base_speed + turn_correction + forward_pwm;
+  int right_pwm = base_speed - turn_correction + forward_pwm;
+
+  analogWrite(LEFT_MOTOR, constrain(left_pwm, 0, 255));
   analogWrite(RIGHT_MOTOR, constrain(right_pwm, 0, 255));
 }
+
 //function used for determing the time between speed adjustments
 unsigned long last_time = 0;
 float time_passed() {
