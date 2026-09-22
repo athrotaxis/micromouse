@@ -3,6 +3,7 @@
 #include <iostream>
 #include <Wire.h>
 #include "SparkFun_VL53L1X.h"
+#include <math.h>
 
 //PIN DEFINITIONS
 //Sensors
@@ -15,24 +16,24 @@
 #define RIGHT_ADDRESS 0x31
 
 //MOTOR PINS
-#define LEFT_MOTOR_1
-#define LEFT_MOTOR_2
-#define RIGHT_MOTOR_1
-#define RIGHT_MOTOR_2
+#define LEFT_MOTOR_CTRL
+#define LEFT_MOTOR_PWM
+#define RIGHT_MOTOR_CTRL
+#define RIGHT_MOTOR_PWM
 
 //DISTANCE RELATED TO WHEEL ENCODERS
 #define PULSES_PER_REVOLUTION 12
 
 //TIME THRESHOLD BEFORE WHEEL IS CONSIDERED STOPPED
-#define STOPPED_THRESHOLD 
+#define STOPPED_THRESHOLD 100
 
 //DEFINING ACCEPTABLE ERRORS
 #define ACCEPTABLE_HEADING_ERROR 0
 
 //Defining some things for l8er
-#define base_speed (whatever we want)
-#define cell_length 18
-#define mm_per_tick (32 * PI()) / 12 //mm
+#define base_speed 100
+#define CELL_LENGTH 18
+#define mm_per_tick (32 * PI) / 12 //mm
 
 //Defining distances so that the mouse knows if the wall it is detecting is the wall associated with the cell its in or not
 #define FRONT_WALL_THRESHOLD
@@ -43,12 +44,19 @@
 #define Ki 1
 #define Kd 1
 
-#define WALL_DISTANCE 2.45
+//#define WALL_DISTANCE 2.45 i think this is wrong leave for now
 
 #define TARGET_SPEED 100 //placeholder
 
 MPU6050 gyro;
 SFEVL53L1X sensorFront, sensorLeft, sensorRight;
+
+//PID control stuff, defining the type
+struct PIDStuff {
+  float Kp, Ki, Kd;
+  float integral = 0;
+  float last_error = 0;
+};
 
 //STATES & SUCH
 enum State {
@@ -56,7 +64,7 @@ enum State {
   StateForward,
   StateTurn,
   StateAdjust,
-  StateNewCell
+  StateNewCell,
   StateCentre
 };
 
@@ -74,7 +82,6 @@ enum Event{
 //Defining variables
 
 unsigned long last_gyro_time = 0; // used for tracking the previous time in terms of the arduino clock that the gyro last measured at
-float current_heading = 0; //angle at which the micromouse is travelling, 0 being straight forward
 float gyro_z_offset = 0; //rotational velocity gyro reads while stationary
 float target_heading = 0; //the heading the micromouse is supposed to travel at
 
@@ -83,7 +90,7 @@ float target_heading = 0; //the heading the micromouse is supposed to travel at
 void calibrate_gyro() {
   long sum = 0;
   for (int i = 0; i < 500; i++){
-    z_calibrate = gyro.GetRotationZ();
+    int z_calibrate = gyro.GetRotationZ();
     sum += z_calibrate;
     delay(2); //this delay along with the for loop means that it takes 500 measurments of angular velocity across the span of 1 second, can be altered to increase or decrease accuracy as needed
   }
@@ -101,45 +108,7 @@ float update_gyro() {
   if (abs(yaw) < 0.5){ 
     yaw = 0;
   }
-  return yaw * Kg
-
-
-  //SLOP CODE
-  // current_heading += yaw * time_elapsed;
-  // if (current_heading > ACCEPTABLE_HEADING_ERROR){
-  //   return EventCrooked;
-  // }
-  // return EventNone;
-}
-
-//constants for adjusting the value of the correction needed for the heading to be adjusted at a speed variable to how close it is to the target heading
-#define correction_constant 1
-#define braking_constant 1
-
-//Function for determing the angular correction needed
-
-float heading_correction (float time_elapsed){ 
-  float error = target_heading - current_heading; //figures out the difference in angle between desired and actual direction
-// adjusts the error so that the mouse doesnt turn on the obtuse angle
-  while(error >= 180.0f) {
-    error -= 360.0f;
-  }
-  while(error < 180) {
-    error += 360.0f;
-  }
-  float error_speed = (error - previous_error) / time_elapsed; //taking the derivative of the error to see how fast the discrepancy in error is changing, later used to ensure smooth correction
-  previous_error = error;
-  return (correction_constant * error) + (braking_constant * error_speed);
-}
-
-//fairly self explanatory, function for changing motor speed to account for error in heading
-
-void adjust_heading(){
-  float correction = heading_correction(time_elapsed);
-  int left_pwm = base_speed + correction;
-  int right_pwm = base_speed - correction;
-  AnalogWrite(LEFT_MOTOR, left_pwm);
-  AnalogWrite(RIGHT_MOTOR, right_pwm);
+  return yaw * Kg;
 }
 
 //WHEEL ENCODERS
@@ -181,7 +150,8 @@ float wheel_speed(volatile unsigned long &pulse_time, volatile unsigned long &la
   if (time_since_last_pulse > STOPPED_THRESHOLD) {
     return 0.0f; // no pulse in a while — actually stopped
   }
-  if (interval_snapshot == 0) {  own speed
+  if (interval_snapshot == 0) {
+    return NAN;
   }
   return mm_per_tick / (interval_snapshot / 1e6f);
 }
@@ -201,13 +171,6 @@ float forward_pwm_calc(float dt) {
   float avg_speed = (left_speed + right_speed) / 2.0f;
   return update_PID(forward_pid, TARGET_SPEED, avg_speed, dt);
 }
-
-//PID control stuff, defining the type
-struct PIDStuff {
-  float Kp, Ki, Kd;
-  float integral = 0;
-  float last_error = 0;
-};
 
 //Arrays for the various case dependant constants as well as defining the objects for the 3 cases
 PIDStuff left_motor = {1, 1, 1};
@@ -250,8 +213,18 @@ float sense_lr (){
   return Kwall * dist_wall;
 }
 
-float turn_pwm (){
-  return update_PID(turn_pid, sense_lr(), update_gyro(), time_elapsed); //maybe look at seperating all the different time_elapsed's later 
+float turn_pwm (float dt){
+  return update_PID(turn_pid, sense_lr(), update_gyro(), dt); //maybe look at seperating all the different time_elapsed's later 
+}
+
+void motors(int ctrl_pin, int pwm_pin, int pwm){
+  if (pwm >= 0){
+    digitalWrite(ctrl_pin, HIGH);
+  }
+  else{
+    digitalWrite(ctrl_pin, LOW);
+  }
+  analogWrite(pwm_pin, constrain(abs(pwm), 0, 255));
 }
 
 void new_pwm() {
@@ -262,8 +235,8 @@ void new_pwm() {
   int left_pwm  = base_speed + turn_correction + forward_pwm;
   int right_pwm = base_speed - turn_correction + forward_pwm;
 
-  analogWrite(LEFT_MOTOR, constrain(left_pwm, 0, 255));
-  analogWrite(RIGHT_MOTOR, constrain(right_pwm, 0, 255));
+  motors(LEFT_MOTOR_CTRL, LEFT_MOTOR_PWM, left_pwm);
+  motors(RIGHT_MOTOR_CTRL, RIGHT_MOTOR_PWM, right_pwm);
 }
 
 //function used for determing the time between speed adjustments
@@ -357,17 +330,13 @@ void redirect(){
     }
 }
 void stop(){
-  digitalWrite(LEFT_MOTOR_1,LOW);
-  digitalWrite(LEFT_MOTOR_2,LOW);
-  digitalWrite(RIGHT_MOTOR_1,LOW);
-  digitalWrite(RIGHT_MOTOR_2,LOW);
+  analogWrite(LEFT_MOTOR_PWM, 0);
+  analogWrite(RIGHT_MOTOR_PWM, 0);
 }
 
 void forward(){
-  //actually turn motors on
-
-
-  adjust_heading();
+  //probs need some stuff to do with the dead reckoning here at some point
+  new_pwm();
 }
 void recentre(){
   float correction_angle = RECENTRING_FACTOR * centre_error;
@@ -446,6 +415,12 @@ void setup() {
   //SENSORS
   Wire.begin();
 
+  //SETTING UP MOTORS
+  pinMode(LEFT_MOTOR_CTRL, OUTPUT);
+  pinMode(LEFT_MOTOR_PWM, OUTPUT);
+  pinMode(RIGHT_MOTOR_CTRL, OUTPUT);
+  pinMode(RIGHT_MOTOR_PWM, OUTPUT);
+
   //Setting up sensors to output and powering them down
   pinMode(XSHUT_FRONT, OUTPUT);
   pinMode(XSHUT_LEFT, OUTPUT);
@@ -503,11 +478,11 @@ void setup() {
 }
 
 void loop() {
-  Event event = update_event();
+  // Event event = update_event();
 
-  current_state = transition(current_state, event);
+  // current_state = transition(current_state, event);
 
-  do_thing(current_state);
+  // do_thing(current_state);
   
 }
 
