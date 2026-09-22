@@ -1,0 +1,275 @@
+#include <MPU6050.h>
+#include <Wire.h>
+#include "SparkFun_VL53L1X.h"
+#include <math.h>
+
+//PIN DEFINITIONS
+//Sensors
+#define XSHUT_FRONT 
+#define XSHUT_LEFT
+#define XSHUT_RIGHT
+
+#define FRONT_ADDRESS 0x29
+#define LEFT_ADDRESS 0x30
+#define RIGHT_ADDRESS 0x31
+
+//MOTOR PINS
+#define LEFT_MOTOR_CTRL
+#define LEFT_MOTOR_PWM
+#define RIGHT_MOTOR_CTRL
+#define RIGHT_MOTOR_PWM
+
+//ENCODER PINS
+#define LEFT_ENCODER_PIN
+#define RIGHT_ENCODER_PIN
+
+//DISTANCE RELATED TO WHEEL ENCODERS
+#define PULSES_PER_REVOLUTION 12
+
+//TIME THRESHOLD BEFORE WHEEL IS CONSIDERED STOPPED
+#define STOPPED_THRESHOLD 100
+
+//Defining some things for l8er
+#define base_speed 100
+#define CELL_LENGTH 18
+#define mm_per_tick (32 * PI) / 12 //mm
+
+//PID Constants
+#define Kp 1
+#define Ki 1
+#define Kd 1
+
+#define TARGET_SPEED 100 //placeholder
+
+#define Kg 1
+
+#define Kwall 1
+#define WALL_DISTANCE 5.95 //cm
+
+MPU6050 gyro;
+SFEVL53L1X sensorFront, sensorLeft, sensorRight;
+
+//PID control stuff, defining the type
+struct PIDStuff {
+  float Kp, Ki, Kd;
+  float integral = 0;
+  float last_error = 0;
+};
+
+//Defining variables
+
+unsigned long last_gyro_time = 0; // used for tracking the previous time in terms of the arduino clock that the gyro last measured at
+float gyro_z_offset = 0; //rotational velocity gyro reads while stationary
+float target_heading = 0; //the heading the micromouse is supposed to travel at
+
+//Determing the reading whilst stationary so that the gyro may be more accurate
+
+void calibrate_gyro() {
+  long sum = 0;
+  for (int i = 0; i < 500; i++){
+    int z_calibrate = gyro.GetRotationZ();
+    sum += z_calibrate;
+    delay(2); //this delay along with the for loop means that it takes 500 measurments of angular velocity across the span of 1 second, can be altered to increase or decrease accuracy as needed
+  }
+  gyro_z_offset = (float)sum /500; //takes the average of those 500 readings to determine the defualt angular velocity reading
+}
+
+//Reading sensor
+float update_gyro() {
+  unsigned long arduino_time = micros();  //micros is an arduino function that keeps track of time since the arduino was turned on in microseconds
+  float time_elapsed = (arduino_time - last_gyro_time)/1e6f; //pretty simple, just finding the time between readings, dividing by 10^6 is converting microseconds to seconds.
+  last_gyro_time = arduino_time; 
+  int z_rotation_raw = gyro.GetRotationZ(); //raw data for rotation about the z axis
+  float yaw = ((float)z_rotation_raw - gyro_z_offset) / 131.0f; //adjusts for the actual rotation by subtracting the stationary reading and dividing by 131 to give rotation in degrees per second
+  if (abs(yaw) < 0.5){ 
+    yaw = 0;
+  }
+  return yaw * Kg;
+}
+
+//WHEEL ENCODERS
+//Declaring variables
+volatile int left_pulses = 0;
+volatile unsigned long last_left_pulse_time = 0;
+volatile unsigned long left_pulse_time = 0;
+volatile int right_pulses = 0;
+volatile unsigned long last_right_pulse_time = 0;
+volatile unsigned long right_pulse_time = 0;
+
+//Interrupt functions
+//might be too much lines in this
+void left_encoder_addition() {
+  unsigned long present = micros();
+  left_pulse_time = present - last_left_pulse_time;
+  last_left_pulse_time = present;
+  left_pulses++;
+}
+
+void right_encoder_addition() {
+  unsigned long present = micros();
+  right_pulse_time = present - last_right_pulse_time;
+  last_right_pulse_time = present;
+  right_pulses++;
+}
+
+float left_speed = 0.0f;
+float right_speed = 0.0f;
+
+float wheel_speed(volatile unsigned long &pulse_time, volatile unsigned long &last_pulse_time) {
+  noInterrupts();
+  unsigned long interval_snapshot = pulse_time;
+  unsigned long last_time_snapshot = last_pulse_time;
+  interrupts();
+
+  unsigned long time_since_last_pulse = micros() - last_time_snapshot;
+
+  if (time_since_last_pulse > STOPPED_THRESHOLD) {
+    return 0.0f; // no pulse in a while — actually stopped
+  }
+  if (interval_snapshot == 0) {
+    return NAN;
+  }
+  return mm_per_tick / (interval_snapshot / 1e6f);
+}
+
+void update_speeds() {
+  float left_calc  = wheel_speed(left_pulse_time,  last_left_pulse_time);
+  float right_calc = wheel_speed(right_pulse_time, last_right_pulse_time);
+
+  if (!isnan(left_calc))  left_speed  = left_calc;
+  if (!isnan(right_calc)) right_speed = right_calc;
+}
+
+PIDStuff forward_pid = {1, 1, 1}; // separate PID memory, don't reuse left_motor/right_motor/heading_correction
+
+float forward_pwm_calc(float dt) {
+  update_speeds();                                  // refreshes left_speed / right_speed
+  float avg_speed = (left_speed + right_speed) / 2.0f;
+  return update_PID(forward_pid, TARGET_SPEED, avg_speed, dt);
+}
+
+//Arrays for the various case dependant constants as well as defining the objects for the 3 cases
+PIDStuff left_motor = {1, 1, 1};
+PIDStuff right_motor = {1, 1, 1};
+PIDStuff motor_sync = {1, 1, 1}; //will introduce the motor sync PID stuff l8er
+PIDStuff turn_pid = {1, 1, 1};
+
+//function that actually does the PID calculation
+float update_PID (PIDStuff &pid, float target_speed, float actual_speed, float time_elapsed){ 
+  float error = target_speed - actual_speed; //calculate discrepancy in speed
+  float proportional_term = pid.Kp * error; //calculate the first term of the PID equation
+  pid.integral += error * time_elapsed; //calculate the second term of the equation and add it to the stored memory
+  float integral_term = pid.Ki * pid.integral; //applies the coefficient to the integral term
+  float derivative_term = pid.Kd * (error - pid.last_error) / time_elapsed; //calculates the 3rd term which uses the stored value for the previous error
+  pid.last_error = error; 
+  
+  return proportional_term + integral_term + derivative_term; //sums the 3 terms together to give the pwm adjustment
+}
+
+//uses sensor readings to feed into PD controller
+float sense_lr (){
+  sensorLeft.startRanging();
+  sensorRight.startRanging();
+
+  int l_dist = sensorLeft.getDistance();
+  int r_dist = sensorRight.getDistance();
+
+  int dist_wall = r_dist - l_dist;
+  if (abs(dist_wall) > WALL_DISTANCE){
+    int cells_off = round((dist_wall - WALL_DISTANCE)/CELL_LENGTH);  
+    if (dist_wall < 0){
+      dist_wall += cells_off * CELL_LENGTH;
+    }
+    else {
+      dist_wall -= cells_off * CELL_LENGTH;
+    }
+  }
+  return Kwall * dist_wall;
+}
+
+float turn_pwm (float dt){
+  return update_PID(turn_pid, sense_lr(), update_gyro(), dt); //maybe look at seperating all the different time_elapsed's later 
+}
+
+void motors(int ctrl_pin, int pwm_pin, int pwm){
+  if (pwm >= 0){
+    digitalWrite(ctrl_pin, HIGH);
+  }
+  else{
+    digitalWrite(ctrl_pin, LOW);
+  }
+  analogWrite(pwm_pin, constrain(abs(pwm), 0, 255));
+}
+
+void new_pwm() {
+  float dt = time_passed();       
+  float turn_correction = turn_pwm(dt);
+  float forward_pwm = forward_pwm_calc(dt);
+
+  int left_pwm  = base_speed + turn_correction + forward_pwm;
+  int right_pwm = base_speed - turn_correction + forward_pwm;
+
+  motors(LEFT_MOTOR_CTRL, LEFT_MOTOR_PWM, left_pwm);
+  motors(RIGHT_MOTOR_CTRL, RIGHT_MOTOR_PWM, right_pwm);
+}
+
+//function used for determing the time between speed adjustments
+unsigned long last_time = 0;
+float time_passed() {
+  unsigned long now = micros();
+  float time_its_been = (now - last_time) / 1e6f;
+  last_time = now;
+  return time_its_been;
+}
+
+void stop(){
+  analogWrite(LEFT_MOTOR_PWM, 0);
+  analogWrite(RIGHT_MOTOR_PWM, 0);
+}
+
+void setup() {
+  //IMU
+  calibrate_gyro();
+
+  //SENSORS
+  Wire.begin();
+
+  //SETTING UP MOTORS
+  pinMode(LEFT_MOTOR_CTRL, OUTPUT);
+  pinMode(LEFT_MOTOR_PWM, OUTPUT);
+  pinMode(RIGHT_MOTOR_CTRL, OUTPUT);
+  pinMode(RIGHT_MOTOR_PWM, OUTPUT);
+
+  //Setting up sensors to output and powering them down
+  pinMode(XSHUT_FRONT, OUTPUT);
+  pinMode(XSHUT_LEFT, OUTPUT);
+  pinMode(XSHUT_RIGHT, OUTPUT);
+
+  digitalWrite(XSHUT_FRONT, LOW);
+  digitalWrite(XSHUT_LEFT, LOW);
+  digitalWrite(XSHUT_RIGHT, LOW);
+  delay(10);
+
+  //Individually powering on sensors and assigning them their appropriate address
+  digitalWrite(XSHUT_FRONT, HIGH);
+  delay(10);
+  sensorFront.begin();
+
+  digitalWrite(XSHUT_LEFT, HIGH);
+  delay(10);
+  sensorLeft.begin();
+  sensorLeft.setI2CAddress(LEFT_ADDRESS);
+
+  digitalWrite(XSHUT_RIGHT, HIGH);
+  delay(10);
+  sensorRight.begin();
+  sensorRight.setI2CAddress(RIGHT_ADDRESS);
+
+  //creating the interrupts for the wheel encoder functions
+  attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_PIN), left_encoder_addition, RISING);
+  attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_PIN), right_encoder_addition, RISING);
+}
+
+void loop() {
+  new_pwm();
+}
