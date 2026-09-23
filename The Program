@@ -60,10 +60,9 @@ struct PIDStuff {
 enum State {
   StateFinished,
   StateForward,
-  StateTurn,
-  StateAdjust,
-  StateNewCell,
-  StateCentre
+  StateTurnLeft,
+  StateTurnRight,
+  StateMOT
 };
 
 State currentState = StateForward;
@@ -71,10 +70,7 @@ State currentState = StateForward;
 enum Event{
   EventBegin,
   EventFinish,
-  EventOffCentre,
-  EventCrooked,
-  EventBlocked,
-  EventNone
+  EventMomentOfTruth
 };
 
 //Defining variables
@@ -144,9 +140,6 @@ Cell dequeue(int* head)
 { 
     return queue[(*head)++ % QUEUE_SIZE]; 
 }
-
-
-
 
 
 
@@ -518,22 +511,20 @@ void do_thing(){
     }
 }
 
-
-
 State transition(State state, Event event){
   switch(state){
-    case StateContinue:
+    case StateForward:
       if(event == EventFinish) return StateFinish;
-      if(event == EventCrooked) return StateAdjust;
-      if(event == EventOffCentre) return StateCentre;
-      if(event == EventBlocked) return StateTurn;
       if(event == EventMomentOfTruth) return StateMoT;
+      drive();
       break;
-    case StateDone:
-      if(event == EventFinish) return StateFinish;
-      if(event != EventCrooked) return StateForward;
+    case StateFinished:
+      stop();
       break;
-    case StateDecisionPt:
+    case StateMOT:
+      updateWalls(mouse_x, mouse_y, mouse_direction);
+      flood_fill();
+      if (find_best_step() ==)
       if(event == EventFinish) return StateFinish;
       if(event != EventOffCentre) return StateForward;
       break;
@@ -552,7 +543,14 @@ State transition(State state, Event event){
   }
   return state;
 }
-
+StateFinished,
+  StateForward,
+  StateTurnLeft,
+  StateTurnRight,
+  StateMOT
+  EventBegin,
+  EventFinish,
+  EventMomentOfTruth
 
 void setup() {
   //IMU
