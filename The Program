@@ -70,7 +70,11 @@ State currentState = StateForward;
 enum Event{
   EventBegin,
   EventFinish,
-  EventMomentOfTruth
+  EventMomentOfTruth,
+  EventTurnLeft,
+  EventTurnRight,
+  EventUTurn,
+  EventForward
 };
 
 //Defining variables
@@ -497,6 +501,56 @@ Event update_event(){
   return EventNo;
 }
 
+Event find_best_step()
+{
+    int min_val = 255;
+    int best_dir = -1; //forgot
+
+    int dx[] = {0, 1, 0, -1};
+    int dy[] = {1, 0, -1, 0};
+
+    // Check all 4 neighbours to see which is a) not blocked by a wall and b) has the lowest weight
+    for (int d_check = 0; d_check < 4; d_check++) {
+        int nx = mouse_x + dx[d_check];
+        int ny = mouse_y + dy[d_check];
+        if (nx >= 0 && nx < MAZE_DIMENSION && ny >= 0 && ny < MAZE_DIMENSION) {
+            // If path is clear in memory
+            if (!wall_in_direction(wall_location[mouse_x][mouse_y], d_check)) {
+                if (weight[nx][ny] < min_val || (weight[nx][ny] == min_val && d_check == mouse_direction)) { // preference going straight as its faster than turning
+                    min_val = weight[nx][ny];
+                    best_dir = d_check;
+                }
+            }
+        }
+    }
+
+    //prolly for the real world would change API_turnRight() to have this function (move_best_step) return which way it needs to turn
+    if (best_dir != -1) {
+        // Turn to face best direction
+        if (best_dir == mouse_direction) {
+            // already facing right way
+        } else if (best_dir == (mouse_direction + 1) % 4) {
+            mouse_direction = (mouse_direction + 1) % 4;
+            return EventTurnRight; 
+        } else if (best_dir == (mouse_direction + 3) % 4) {
+            mouse_direction = (mouse_direction + 3) % 4;
+            return EventTurnLeft;
+        } else {
+            mouse_direction = (mouse_direction + 2) % 4;
+            return EventUTurn;
+        }
+
+        //change position after moving forwards
+        if (mouse_direction == NORTH) mouse_y++;
+        if (mouse_direction == EAST)  mouse_x++;
+        if (mouse_direction == SOUTH) mouse_y--;
+        if (mouse_direction == WEST)  mouse_x--;
+
+        //and then move this line to another function, so after having called this function and then making mouse turn appropriately it will go forwards
+        return EventForward;
+    }
+}
+
 void do_thing(){
     switch(state){
         case StateForward:
@@ -524,7 +578,13 @@ State transition(State state, Event event){
     case StateMOT:
       updateWalls(mouse_x, mouse_y, mouse_direction);
       flood_fill();
-      if (find_best_step() ==)
+      if (find_best_step() == EventForward) {
+        return StateForward;
+      } else if ()
+      {
+        /* code */
+      }
+      
       if(event == EventFinish) return StateFinish;
       if(event != EventOffCentre) return StateForward;
       break;
