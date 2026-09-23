@@ -62,10 +62,9 @@ PIDStuff forward_pid = {1, 1, 1};
 enum State {
   StateFinished,
   StateForward,
-  StateTurn,
-  StateAdjust,
-  StateNewCell,
-  StateCentre
+  StateTurnLeft,
+  StateTurnRight,
+  StateMOT
 };
 
 State currentState = StateForward;
@@ -73,10 +72,7 @@ State currentState = StateForward;
 enum Event{
   EventBegin,
   EventFinish,
-  EventOffCentre,
-  EventCrooked,
-  EventBlocked,
-  EventNone
+  EventMomentOfTruth
 };
 
 //Defining variables
@@ -84,6 +80,70 @@ enum Event{
 unsigned long last_gyro_time = 0; // used for tracking the previous time in terms of the arduino clock that the gyro last measured at
 float gyro_z_offset = 0; //rotational velocity gyro reads while stationary
 float target_heading = 0; //the heading the micromouse is supposed to travel at
+
+//----------------------logic stuff----------------------------------------------
+#define MAZE_DIMENSION 16
+
+uint8_t weight [MAZE_DIMENSION][MAZE_DIMENSION]; //holds the weight of each cell
+
+//printing (the mms program is lowkey basic and just reads what is printed to stderr to decide what to do)
+void log2(char* text) {
+    fprintf(stderr, "%s\n", text);
+    fflush(stderr);
+}
+
+//data structure containing the possible positions of walls
+typedef struct walls { 
+    bool north;
+    bool east;
+    bool south;
+    bool west;
+} walls;
+
+//Create a 2D array where each cell contains whether there is a wall to the noth, east, south and west of that cell
+walls wall_location[MAZE_DIMENSION][MAZE_DIMENSION];
+
+//Initialise the mouse's current direction & position
+typedef enum directions {NORTH, EAST, SOUTH, WEST} directions;
+enum directions mouse_direction = NORTH;
+
+
+int mouse_x = 0;
+int mouse_y = 0;
+
+//store cell locations (x, y coords) to iterate thru
+typedef struct {
+    int x, y;
+} Cell;
+
+bool visited[MAZE_DIMENSION][MAZE_DIMENSION];
+
+bool wall_in_direction(walls w, int d) {
+    switch(d) {
+        case 0: return w.north;
+        case 1: return w.east;
+        case 2: return w.south;
+        case 3: return w.west;
+    }
+    return false;
+}
+
+//Make queue (a data type required for BFS)
+#define QUEUE_SIZE 256
+Cell queue[256];
+
+//queues are a data type in other languages (eg python which this program is based on).
+//to use in C have to have function to enqueue (add task to the end of the queue) and dequeue (remove first task from queue)
+void enqueue(Cell c, int* tail) 
+{ 
+    queue[(*tail)++ % QUEUE_SIZE] = c; 
+}
+Cell dequeue(int* head)       
+{ 
+    return queue[(*head)++ % QUEUE_SIZE]; 
+}
+
+
 
 //Determing the reading whilst stationary so that the gyro may be more accurate
 
@@ -279,20 +339,72 @@ void read_sensors(){
   }
 }
 
-void find_walls(){
-  if (distance_front < FRONT_THRESHOLD_DISTANCE){
-    //add wall into array
+bool isWall() {
+  // return if theres a wall on the left
+}
+
+void update_walls(int x, int y, directions mouse_direction){
+  if (isWall(FRONT)){
+    if (mouse_direction == NORTH) {
+            wall_location[x][y].north = true;
+            API_setWall(x, y, 'n');
+            if (y < MAZE_DIMENSION - 1) { wall_location[x][y+1].south = true; API_setWall(x, y+1, 's'); }
+        } else if (mouse_direction == EAST) {
+            wall_location[x][y].east = true;
+            API_setWall(x, y, 'e');
+            if (x < MAZE_DIMENSION - 1) { wall_location[x+1][y].west = true; API_setWall(x+1, y, 'w'); }
+        } else if (mouse_direction == SOUTH) {
+            wall_location[x][y].south = true;
+            API_setWall(x, y, 's');
+            if (y > 0) { wall_location[x][y-1].north = true; API_setWall(x, y-1, 'n'); }
+        } else if (mouse_direction == WEST) {
+            wall_location[x][y].west = true;
+            API_setWall(x, y, 'w');
+            if (x > 0) { wall_location[x-1][y].east = true; API_setWall(x-1, y, 'e'); }
+        }
   }
-  if (distance_left < SIDE_DISTANCE_THRESHOLD){
-    //add wall into array
+  if (isWall(LEFT)){
+    if (mouse_direction == NORTH) {
+            wall_location[x][y].west = true;
+            API_setWall(x, y, 'w');
+            if (x > 0) { wall_location[x-1][y].east = true; API_setWall(x-1, y, 'e'); }
+        } else if (mouse_direction == EAST) {
+            wall_location[x][y].north = true;
+            API_setWall(x, y, 'n');
+            if (y < MAZE_DIMENSION - 1) { wall_location[x][y+1].south = true; API_setWall(x, y+1, 's'); }
+        } else if (mouse_direction == SOUTH) {
+            wall_location[x][y].east = true;
+            API_setWall(x, y, 'e');
+            if (x < MAZE_DIMENSION - 1) { wall_location[x+1][y].west = true; API_setWall(x+1, y, 'w'); }
+        } else if (mouse_direction == WEST) {
+            wall_location[x][y].south = true;
+            API_setWall(x, y, 's');
+            if (y > 0) { wall_location[x][y-1].north = true; API_setWall(x, y-1, 'n'); }
+        }
   }
-  if(distance_right < SIDE_DISTANCE_THRESHOLD){
-    //add wall into array
+  if(isWall(RIGHT)){
+     if (mouse_direction == NORTH) {
+            wall_location[x][y].east = true;
+            API_setWall(x, y, 'e');
+            if (x < MAZE_DIMENSION - 1) { wall_location[x+1][y].west = true; API_setWall(x+1, y, 'w'); }
+        } else if (mouse_direction == EAST) {
+            wall_location[x][y].south = true;
+            API_setWall(x, y, 's');
+            if (y > 0) { wall_location[x][y-1].north = true; API_setWall(x, y-1, 'n'); }
+        } else if (mouse_direction == SOUTH) {
+            wall_location[x][y].west = true;
+            API_setWall(x, y, 'w');
+            if (x > 0) { wall_location[x-1][y].east = true; API_setWall(x-1, y, 'e'); }
+        } else if (mouse_direction == WEST) {
+            wall_location[x][y].north = true;
+            API_setWall(x, y, 'n');
+            if (y < MAZE_DIMENSION - 1) { wall_location[x][y+1].south = true; API_setWall(x, y+1, 's'); }
+        }
   }
 }
 
 //Function that holds the logic for turning and heading reassignment
-void redirect(){
+void flood_fill(){
   //if () return; //logic for when lowest weight square is forward
   int min_val = 255;
   int best_dir = -1;
@@ -395,32 +507,24 @@ void do_thing(){
           break;*/
         case StateCentre:
           recentre();
-
           break;
-
-
-
-
-
     }
 }
 
-
-
 State transition(State state, Event event){
   switch(state){
-    case StateContinue:
+    case StateForward:
       if(event == EventFinish) return StateFinish;
-      if(event == EventCrooked) return StateAdjust;
-      if(event == EventOffCentre) return StateCentre;
-      if(event == EventBlocked) return StateTurn;
       if(event == EventMomentOfTruth) return StateMoT;
+      drive();
       break;
-    case StateDone:
-      if(event == EventFinish) return StateFinish;
-      if(event != EventCrooked) return StateForward;
+    case StateFinished:
+      stop();
       break;
-    case StateDecisionPt:
+    case StateMOT:
+      updateWalls(mouse_x, mouse_y, mouse_direction);
+      flood_fill();
+      if (find_best_step() ==)
       if(event == EventFinish) return StateFinish;
       if(event != EventOffCentre) return StateForward;
       break;
@@ -439,7 +543,14 @@ State transition(State state, Event event){
   }
   return state;
 }
-
+StateFinished,
+  StateForward,
+  StateTurnLeft,
+  StateTurnRight,
+  StateMOT
+  EventBegin,
+  EventFinish,
+  EventMomentOfTruth
 
 void setup() {
   //IMU
@@ -514,11 +625,7 @@ void setup() {
 }
 
 void loop() {
-  // Event event = update_event();
-
-  // current_state = transition(current_state, event);
-
-  // do_thing(current_state);
+  
   
 }
 
