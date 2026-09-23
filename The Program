@@ -213,8 +213,13 @@ float sense_lr (){
   return Kwall * dist_wall;
 }
 
-float turn_pwm (float dt){
+float turn_pwm (State state, float dt){
+  if(state == StateTurn){
+    return update_PID(turn_pid, 0, update_gyro(), dt);
+  }
+  else{
   return update_PID(turn_pid, sense_lr(), update_gyro(), dt); //maybe look at seperating all the different time_elapsed's later 
+  }
 }
 
 void motors(int ctrl_pin, int pwm_pin, int pwm){
@@ -229,7 +234,7 @@ void motors(int ctrl_pin, int pwm_pin, int pwm){
 
 void new_pwm() {
   float dt = time_passed();       
-  float turn_correction = turn_pwm(dt);
+  float turn_correction = turn_pwm(current_state, dt);
   float forward_pwm = forward_pwm_calc(dt);
 
   int left_pwm  = base_speed + turn_correction + forward_pwm;
@@ -329,13 +334,40 @@ void redirect(){
         }
     }
 }
+
 void stop(){
   analogWrite(LEFT_MOTOR_PWM, 0);
   analogWrite(RIGHT_MOTOR_PWM, 0);
 }
 
+//function for dead reckoning
+void update_position(){
+  float pulses = (left_pulses + right_pulses) / 2;
+  float distance_travelled = pulses * mm_per_tick;
+  dead_reckoning(current_state, distance_travelled);
+}
+
+void dead_reckoning(State state, float distance){
+  if (state == StateTurn){
+    return;
+  }
+  else if (mouse_direction == NORTH){
+    mouse_y += distance;
+  }
+  else if (mouse_direction == EAST){
+    mouse_x += distance;
+  }
+  else if (mouse_direction == SOUTH){
+    mouse_y -= distance;
+  }
+  else if (mouse_direction == WEST){
+    mouse_x -= distance;
+  }
+}
+
 void forward(){
   //probs need some stuff to do with the dead reckoning here at some point
+  update_position();
   new_pwm();
 }
 void recentre(){
