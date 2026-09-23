@@ -39,14 +39,10 @@
 #define FRONT_WALL_THRESHOLD
 #define SIDE_WALL_THRESHOLD
 
-//PID Constants
-#define Kp 1
-#define Ki 1
-#define Kd 1
-
 //#define WALL_DISTANCE 2.45 i think this is wrong leave for now
 
 #define TARGET_SPEED 100 //placeholder
+#define TARGET_ANGULAR_SPEED 50 //placeholder
 
 MPU6050 gyro;
 SFEVL53L1X sensorFront, sensorLeft, sensorRight;
@@ -57,6 +53,10 @@ struct PIDStuff {
   float integral = 0;
   float last_error = 0;
 };
+
+PIDStuff turn_pid = {1, 1, 1};
+PIDStuff forward_pid = {1, 1, 1}; 
+
 
 //STATES & SUCH
 enum State {
@@ -164,19 +164,14 @@ void update_speeds() {
   if (!isnan(right_calc)) right_speed = right_calc;
 }
 
-PIDStuff forward_pid = {1, 1, 1}; // separate PID memory, don't reuse left_motor/right_motor/heading_correction
-
 float forward_pwm_calc(float dt) {
-  update_speeds();                                  // refreshes left_speed / right_speed
+  update_speeds();                                
   float avg_speed = (left_speed + right_speed) / 2.0f;
+  if (current_state == StateTurnLeft || current_state == StateTurnRight) {
+    return update_PID(forward_pid, 0, avg_speed, dt);
+  }
   return update_PID(forward_pid, TARGET_SPEED, avg_speed, dt);
 }
-
-//Arrays for the various case dependant constants as well as defining the objects for the 3 cases
-PIDStuff left_motor = {1, 1, 1};
-PIDStuff right_motor = {1, 1, 1};
-PIDStuff motor_sync = {1, 1, 1}; //will introduce the motor sync PID stuff l8er
-PIDStuff turn_pid = {1, 1, 1};
 
 //function that actually does the PID calculation
 float update_PID (PIDStuff &pid, float target_speed, float actual_speed, float time_elapsed){ 
@@ -214,8 +209,11 @@ float sense_lr (){
 }
 
 float turn_pwm (State state, float dt){
-  if(state == StateTurn){
-    return update_PID(turn_pid, 0, update_gyro(), dt);
+  if(state == StateTurnLeft){
+    return update_PID(turn_pid, -TARGET_ANGULAR_SPEED, update_gyro(), dt);
+  }
+  else if(state == StateTurnRight){
+    return update_PID(turn_pid, TARGET_ANGULAR_SPEED, update_gyro(), dt);
   }
   else{
   return update_PID(turn_pid, sense_lr(), update_gyro(), dt); //maybe look at seperating all the different time_elapsed's later 
@@ -365,7 +363,7 @@ void dead_reckoning(State state, float distance){
   }
 }
 
-void forward(){
+void drive(){
   //probs need some stuff to do with the dead reckoning here at some point
   update_position();
   new_pwm();
