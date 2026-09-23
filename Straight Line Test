@@ -1,6 +1,4 @@
-
 #include <MPU6050.h>
-#include <iostream>
 #include <Wire.h>
 #include "SparkFun_VL53L1X.h"
 #include <math.h>
@@ -21,32 +19,32 @@
 #define RIGHT_MOTOR_CTRL
 #define RIGHT_MOTOR_PWM
 
+//ENCODER PINS
+#define LEFT_ENCODER_PIN
+#define RIGHT_ENCODER_PIN
+
 //DISTANCE RELATED TO WHEEL ENCODERS
 #define PULSES_PER_REVOLUTION 12
 
 //TIME THRESHOLD BEFORE WHEEL IS CONSIDERED STOPPED
 #define STOPPED_THRESHOLD 100
 
-//DEFINING ACCEPTABLE ERRORS
-#define ACCEPTABLE_HEADING_ERROR 0
-
 //Defining some things for l8er
 #define base_speed 100
 #define CELL_LENGTH 18
 #define mm_per_tick (32 * PI) / 12 //mm
-
-//Defining distances so that the mouse knows if the wall it is detecting is the wall associated with the cell its in or not
-#define FRONT_WALL_THRESHOLD
-#define SIDE_WALL_THRESHOLD
 
 //PID Constants
 #define Kp 1
 #define Ki 1
 #define Kd 1
 
-//#define WALL_DISTANCE 2.45 i think this is wrong leave for now
-
 #define TARGET_SPEED 100 //placeholder
+
+#define Kg 1
+
+#define Kwall 1
+#define WALL_DISTANCE 5.95 //cm
 
 MPU6050 gyro;
 SFEVL53L1X sensorFront, sensorLeft, sensorRight;
@@ -56,27 +54,6 @@ struct PIDStuff {
   float Kp, Ki, Kd;
   float integral = 0;
   float last_error = 0;
-};
-
-//STATES & SUCH
-enum State {
-  StateFinished,
-  StateForward,
-  StateTurn,
-  StateAdjust,
-  StateNewCell,
-  StateCentre
-};
-
-State currentState = StateForward;
-
-enum Event{
-  EventBegin,
-  EventFinish,
-  EventOffCentre,
-  EventCrooked,
-  EventBlocked,
-  EventNone
 };
 
 //Defining variables
@@ -98,7 +75,6 @@ void calibrate_gyro() {
 }
 
 //Reading sensor
-#define Kg 1
 float update_gyro() {
   unsigned long arduino_time = micros();  //micros is an arduino function that keeps track of time since the arduino was turned on in microseconds
   float time_elapsed = (arduino_time - last_gyro_time)/1e6f; //pretty simple, just finding the time between readings, dividing by 10^6 is converting microseconds to seconds.
@@ -190,8 +166,6 @@ float update_PID (PIDStuff &pid, float target_speed, float actual_speed, float t
   return proportional_term + integral_term + derivative_term; //sums the 3 terms together to give the pwm adjustment
 }
 
-#define Kwall 1
-#define WALL_DISTANCE 5.95 //cm
 //uses sensor readings to feed into PD controller
 float sense_lr (){
   sensorLeft.startRanging();
@@ -247,169 +221,11 @@ float time_passed() {
   last_time = now;
   return time_its_been;
 }
-//function for driving forward
 
-float forward_distance_travelled = 0.0f; //variable for keeping track of distance travelled
-
-void read_right_sensor(){
-  while(!sensorRight.checkForDataReady()) delay(1);
-  int distance_right = sensorRight.getDistance();
-  sensorRight.clearInput();
-  sensorRight.stopRanging();
-}
-
-void read_sensors(){
-  sensorFront.startRanging();
-  sensorLeft.startRanging();
-  sensorRight.startRanging();
-
-  read_front_sensor();
-  read_left_sensor();
-  read_right_sensor();
-
-  centre_error = distance_right - distance_left;
-  if (abs(centre_error) < CENTRE_TOLERANCE){
-    return EventOffCentre;
-  }
-  else{
-    return EventNone;
-  }
-}
-
-void find_walls(){
-  if (distance_front < FRONT_THRESHOLD_DISTANCE){
-    //add wall into array
-  }
-  if (distance_left < SIDE_DISTANCE_THRESHOLD){
-    //add wall into array
-  }
-  if(distance_right < SIDE_DISTANCE_THRESHOLD){
-    //add wall into array
-  }
-}
-
-//Function that holds the logic for turning and heading reassignment
-void redirect(){
-  //if () return; //logic for when lowest weight square is forward
-  int min_val = 255;
-  int best_dir = -1;
-
-  int dx[] = {0, 1, 0, -1};
-  int dy[] = {1, 0, -1, 0};
-
-  // Check all 4 neighbours
-  for (int d_check = 0; d_check < 4; d_check++) {
-    int nx = mouse_x + dx[d_check];
-    int ny = mouse_y + dy[d_check];
-    if (nx >= 0 && nx < MAZE_DIMENSION && ny >= 0 && ny < MAZE_DIMENSION) {
-    // If path is clear in memory
-      if (!wall_in_direction(wall_location[mouse_x][mouse_y], d_check)) {
-        if (weight[nx][ny] < min_val || (weight[nx][ny] == min_val && d_check == mouse_direction)) { // preference going straight to prevent getting stuck
-          min_val = weight[nx][ny];
-          best_dir = d_check;
-        }
-      }
-    }
-  }
-
-  if (best_dir != -1) {
-    // Turn to face best direction
-    if (best_dir == mouse_direction) {
-    // already facing right way
-    } else if (best_dir == (mouse_direction + 1) % 4) {
-        turnRight();
-        target_heading = target_heading - 90; 
-      } else if (best_dir == (mouse_direction + 3) % 4) {
-          turnLeft();
-          target_heading = target_heading + 90;
-        } else {
-          turnRight();
-          turnRight();
-          target_heading = target_heading + 180;
-        }
-    }
-}
 void stop(){
   analogWrite(LEFT_MOTOR_PWM, 0);
   analogWrite(RIGHT_MOTOR_PWM, 0);
 }
-
-void forward(){
-  //probs need some stuff to do with the dead reckoning here at some point
-  new_pwm();
-}
-void recentre(){
-  float correction_angle = RECENTRING_FACTOR * centre_error;
-  correction_angle = constrain(correction_angle, -RECENTRE_ANGLE, RECENTRE_ANGLE);
-
-  target_heading = correction_angle;
-}
-
-Event update_event(){
-  Event yaw = update_gyro();
-  Event position = update_sensors();
-  Event direction = 
-
-  if(yaw != EventNo) return yaw;
-  if (position != EventNo) return position;
-  return EventNo;
-}
-
-void do_thing(){
-    switch(state){
-        case StateForward:
-          forward();
-          break;
-        /*case StateAdjust:
-          adjust_heading();
-          break;*/
-        case StateCentre:
-          recentre();
-
-          break;
-
-
-
-
-
-    }
-}
-
-
-
-State transition(State state, Event event){
-  switch(state){
-    case StateContinue:
-      if(event == EventFinish) return StateFinish;
-      if(event == EventCrooked) return StateAdjust;
-      if(event == EventOffCentre) return StateCentre;
-      if(event == EventBlocked) return StateTurn;
-      if(event == EventMomentOfTruth) return StateMoT;
-      break;
-    case StateDone:
-      if(event == EventFinish) return StateFinish;
-      if(event != EventCrooked) return StateForward;
-      break;
-    case StateDecisionPt:
-      if(event == EventFinish) return StateFinish;
-      if(event != EventOffCentre) return StateForward;
-      break;
-    case StateTurn:
-      if(event == EventFinish) return StateFinish;
-      if(event != EventBlocked) return StateForward;
-      break;
-    case StateMoT:
-      if(event == Event)
-
-      stop();
-      find_walls();
-      update_weight();
-      redirect();
-
-  }
-  return state;
-}
-
 
 void setup() {
   //IMU
@@ -452,48 +268,8 @@ void setup() {
   //creating the interrupts for the wheel encoder functions
   attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_PIN), left_encoder_addition, RISING);
   attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_PIN), right_encoder_addition, RISING);
-
-  log2("Running...");
-    char buf[4];  //msvc quirk, not sure if relevant for arduino
-
-  //Initialise maze arrays
-  for (uint8_t i=0; i < MAZE_DIMENSION; i++) {
-        for (uint8_t j=0; j < MAZE_DIMENSION; j++) {
-            weight[i][j] = 255; //initialise to infinity for some reason not sure?
-            wall_location[i][j].north = false;
-            wall_location[i][j].east = false;
-            wall_location[i][j].south = false;
-            wall_location[i][j].west = false;
-        }
-    }
-    
-    //Set center positions
-    weight[7][7] = 0;
-    weight[7][8] = 0;
-    weight[8][7] = 0;
-    weight[8][8] = 0;
-
-    for (int i = 0; i<16; i++) {
-        for (int j=0; j<16; j++) {
-            visited[i][j] = false; //initialise array of visited cells
-        }
-    }
-
-
-
 }
 
 void loop() {
-  // Event event = update_event();
-
-  // current_state = transition(current_state, event);
-
-  // do_thing(current_state);
-  
+  new_pwm();
 }
-
-  
-  
-
-//Im tired ill do more later
-//ok
