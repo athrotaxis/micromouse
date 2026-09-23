@@ -34,11 +34,6 @@
 #define CELL_LENGTH 18
 #define mm_per_tick (32 * PI) / 12 //mm
 
-//PID Constants
-#define Kp 1
-#define Ki 1
-#define Kd 1
-
 #define TARGET_SPEED 100 //placeholder
 
 #define Kg 1
@@ -55,6 +50,13 @@ struct PIDStuff {
   float integral = 0;
   float last_error = 0;
 };
+
+//Arrays for the various case dependant constants as well as defining the objects for the 3 cases
+PIDStuff forward_pid = {0.5, 0, 0}; // separate PID memory, don't reuse left_motor/right_motor/heading_correction
+PIDStuff left_motor = {0.5, 0, 0};
+PIDStuff right_motor = {1, 1, 1};
+PIDStuff motor_sync = {1, 1, 1}; //will introduce the motor sync PID stuff l8er
+PIDStuff turn_pid = {1, 1, 1};
 
 //Defining variables
 
@@ -140,19 +142,11 @@ void update_speeds() {
   if (!isnan(right_calc)) right_speed = right_calc;
 }
 
-PIDStuff forward_pid = {1, 1, 1}; // separate PID memory, don't reuse left_motor/right_motor/heading_correction
-
 float forward_pwm_calc(float dt) {
   update_speeds();                                  // refreshes left_speed / right_speed
   float avg_speed = (left_speed + right_speed) / 2.0f;
   return update_PID(forward_pid, TARGET_SPEED, avg_speed, dt);
 }
-
-//Arrays for the various case dependant constants as well as defining the objects for the 3 cases
-PIDStuff left_motor = {1, 1, 1};
-PIDStuff right_motor = {1, 1, 1};
-PIDStuff motor_sync = {1, 1, 1}; //will introduce the motor sync PID stuff l8er
-PIDStuff turn_pid = {1, 1, 1};
 
 //function that actually does the PID calculation
 float update_PID (PIDStuff &pid, float target_speed, float actual_speed, float time_elapsed){ 
