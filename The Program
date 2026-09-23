@@ -411,17 +411,18 @@ void do_thing(){
 
 State transition(State state, Event event){
   switch(state){
-    case StateForward:
+    case StateContinue:
       if(event == EventFinish) return StateFinish;
       if(event == EventCrooked) return StateAdjust;
       if(event == EventOffCentre) return StateCentre;
       if(event == EventBlocked) return StateTurn;
+      if(event == EventMomentOfTruth) return StateMoT;
       break;
-    case StateAdjust:
+    case StateDone:
       if(event == EventFinish) return StateFinish;
       if(event != EventCrooked) return StateForward;
       break;
-    case StateCentre:
+    case StateDecisionPt:
       if(event == EventFinish) return StateFinish;
       if(event != EventOffCentre) return StateForward;
       break;
@@ -429,7 +430,9 @@ State transition(State state, Event event){
       if(event == EventFinish) return StateFinish;
       if(event != EventBlocked) return StateForward;
       break;
-    case StateNewCell:
+    case StateMoT:
+      if(event == Event)
+
       stop();
       find_walls();
       update_weight();
@@ -482,6 +485,9 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(LEFT_ENCODER_PIN), left_encoder_addition, RISING);
   attachInterrupt(digitalPinToInterrupt(RIGHT_ENCODER_PIN), right_encoder_addition, RISING);
 
+  log2("Running...");
+    char buf[4];  //msvc quirk, not sure if relevant for arduino
+
   //Initialise maze arrays
   for (uint8_t i=0; i < MAZE_DIMENSION; i++) {
         for (uint8_t j=0; j < MAZE_DIMENSION; j++) {
@@ -522,3 +528,4 @@ void loop() {
   
 
 //Im tired ill do more later
+//ok
