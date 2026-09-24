@@ -64,7 +64,8 @@ enum State {
   StateForward,
   StateTurnLeft,
   StateTurnRight,
-  StateMOT
+  StateMOT,
+  StateUTurn
 };
 
 State currentState = StateForward;
@@ -73,11 +74,10 @@ enum Event{
   EventBegin,
   EventFinish,
   EventMomentOfTruth,
-  EventTurnLeft,
-  EventTurnRight,
-  EventUTurn,
-  EventForward
+  EventDoneTurning
 };
+
+enum 
 
 //Defining variables
 
@@ -86,7 +86,7 @@ float gyro_z_offset = 0; //rotational velocity gyro reads while stationary
 float target_heading = 0; //the heading the micromouse is supposed to travel at
 
 //----------------------logic stuff----------------------------------------------
-#define MAZE_DIMENSION 16
+#define MAZE_DIMENSION 
 
 uint8_t weight [MAZE_DIMENSION][MAZE_DIMENSION]; //holds the weight of each cell
 
@@ -112,8 +112,8 @@ typedef enum directions {NORTH, EAST, SOUTH, WEST} directions;
 enum directions mouse_direction = NORTH;
 
 
-int mouse_x = 0;
-int mouse_y = 0;
+float mouse_x = 0;
+float mouse_y = 0;
 
 //store cell locations (x, y coords) to iterate thru
 typedef struct {
@@ -347,7 +347,7 @@ bool isWall() {
   // return if theres a wall on the left
 }
 
-void update_walls(int x, int y, directions mouse_direction){
+void update_walls(){
   if (isWall(FRONT)){
     if (mouse_direction == NORTH) {
             wall_location[x][y].north = true;
@@ -418,11 +418,11 @@ void flood_fill(){
 
   // Check all 4 neighbours
   for (int d_check = 0; d_check < 4; d_check++) {
-    int nx = mouse_x + dx[d_check];
-    int ny = mouse_y + dy[d_check];
+    int nx = (int)(lroundf(mouse_x)) + dx[d_check];
+    int ny = (int)(lroundf(mouse_y)) + dy[d_check];
     if (nx >= 0 && nx < MAZE_DIMENSION && ny >= 0 && ny < MAZE_DIMENSION) {
     // If path is clear in memory
-      if (!wall_in_direction(wall_location[mouse_x][mouse_y], d_check)) {
+      if (!wall_in_direction(wall_location[(int)(lroundf(mouse_x))][(int)(lroundf(mouse_y))], d_check)) {
         if (weight[nx][ny] < min_val || (weight[nx][ny] == min_val && d_check == mouse_direction)) { // preference going straight to prevent getting stuck
           min_val = weight[nx][ny];
           best_dir = d_check;
@@ -447,7 +447,7 @@ void flood_fill(){
           target_heading = target_heading + 180;
         }
     }
-}
+} 
 
 void stop(){
   analogWrite(LEFT_MOTOR_PWM, 0);
@@ -492,16 +492,14 @@ void recentre(){
 }
 
 Event update_event(){
-  Event yaw = update_gyro();
-  Event position = update_sensors();
-  Event direction = 
-
-  if(yaw != EventNo) return yaw;
-  if (position != EventNo) return position;
-  return EventNo;
+  if(mouse_x ==  4|| mouse_x ==5) {
+    if(mouse_y==4 || mouse_y ==5 ) {
+      return EventFinish;
+    }
+  } if (mouse)
 }
 
-Event find_best_step()
+State find_best_step()
 {
     int min_val = 255;
     int best_dir = -1; //forgot
@@ -511,11 +509,11 @@ Event find_best_step()
 
     // Check all 4 neighbours to see which is a) not blocked by a wall and b) has the lowest weight
     for (int d_check = 0; d_check < 4; d_check++) {
-        int nx = mouse_x + dx[d_check];
-        int ny = mouse_y + dy[d_check];
+        int nx = (int)(lroundf(mouse_x)) + dx[d_check];
+        int ny = (int)(lroundf(mouse_y)) + dy[d_check];
         if (nx >= 0 && nx < MAZE_DIMENSION && ny >= 0 && ny < MAZE_DIMENSION) {
             // If path is clear in memory
-            if (!wall_in_direction(wall_location[mouse_x][mouse_y], d_check)) {
+            if (!wall_in_direction(wall_location[(int)(lroundf(mouse_x))][(int)(lroundf(mouse_y))], d_check)) {
                 if (weight[nx][ny] < min_val || (weight[nx][ny] == min_val && d_check == mouse_direction)) { // preference going straight as its faster than turning
                     min_val = weight[nx][ny];
                     best_dir = d_check;
@@ -531,13 +529,13 @@ Event find_best_step()
             // already facing right way
         } else if (best_dir == (mouse_direction + 1) % 4) {
             mouse_direction = (mouse_direction + 1) % 4;
-            return EventTurnRight; 
+            return StateTurnRight; 
         } else if (best_dir == (mouse_direction + 3) % 4) {
             mouse_direction = (mouse_direction + 3) % 4;
-            return EventTurnLeft;
+            return StateTurnLeft;
         } else {
             mouse_direction = (mouse_direction + 2) % 4;
-            return EventUTurn;
+            return StateUTurn;
         }
 
         //change position after moving forwards
@@ -547,21 +545,7 @@ Event find_best_step()
         if (mouse_direction == WEST)  mouse_x--;
 
         //and then move this line to another function, so after having called this function and then making mouse turn appropriately it will go forwards
-        return EventForward;
-    }
-}
-
-void do_thing(){
-    switch(state){
-        case StateForward:
-          forward();
-          break;
-        /*case StateAdjust:
-          adjust_heading();
-          break;*/
-        case StateCentre:
-          recentre();
-          break;
+        return StateForward;
     }
 }
 
@@ -576,41 +560,24 @@ State transition(State state, Event event){
       stop();
       break;
     case StateMOT:
-      updateWalls(mouse_x, mouse_y, mouse_direction);
+      updateWalls();
       flood_fill();
-      if (find_best_step() == EventForward) {
-        return StateForward;
-      } else if ()
-      {
-        /* code */
-      }
-      
       if(event == EventFinish) return StateFinish;
-      if(event != EventOffCentre) return StateForward;
+      return find_best_step();
       break;
-    case StateTurn:
+    case StateLeftTurn:
       if(event == EventFinish) return StateFinish;
-      if(event != EventBlocked) return StateForward;
+      if(event == EventDoneTurning) return StateForward;
+      drive();
       break;
-    case StateMoT:
-      if(event == Event)
-
-      stop();
-      find_walls();
-      update_weight();
-      redirect();
-
+    case StateRightTurn:
+      if(event == EventFinish) return StateFinish;
+      if(event == EventDoneTurning) return StateForward;
+      drive();
+      break;
   }
   return state;
 }
-StateFinished,
-  StateForward,
-  StateTurnLeft,
-  StateTurnRight,
-  StateMOT
-  EventBegin,
-  EventFinish,
-  EventMomentOfTruth
 
 void setup() {
   //IMU
@@ -669,10 +636,10 @@ void setup() {
     }
     
     //Set center positions
-    weight[7][7] = 0;
-    weight[7][8] = 0;
-    weight[8][7] = 0;
-    weight[8][8] = 0;
+    weight[4][4] = 0;
+    weight[4][5] = 0;
+    weight[5][4] = 0;
+    weight[5][5] = 0;
 
     for (int i = 0; i<16; i++) {
         for (int j=0; j<16; j++) {
@@ -685,7 +652,6 @@ void setup() {
 }
 
 void loop() {
-  
   
 }
 
