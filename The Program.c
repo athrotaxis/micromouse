@@ -20,6 +20,10 @@
 #define RIGHT_MOTOR_CTRL
 #define RIGHT_MOTOR_PWM
 
+//ENCODER PINS
+#define LEFT_ENCODER_PIN
+#define RIGHT_ENCODER_PIN
+
 //DISTANCE RELATED TO WHEEL ENCODERS
 #define PULSES_PER_REVOLUTION 12
 
@@ -75,7 +79,14 @@ enum Event{
   EventBegin,
   EventFinish,
   EventMomentOfTruth,
-  EventDoneTurning
+  EventDoneTurning,
+  EventNone
+};
+
+enum Direction {
+  FRONT,
+  LEFT, 
+  RIGHT
 };
 
 //Defining variables
@@ -83,6 +94,10 @@ enum Event{
 unsigned long last_gyro_time = 0; // used for tracking the previous time in terms of the arduino clock that the gyro last measured at
 float gyro_z_offset = 0; //rotational velocity gyro reads while stationary
 float target_heading = 0; //the heading the micromouse is supposed to travel at
+
+float current_yaw_rate = 0.0;
+float current_heading = 0.0;
+
 
 //----------------------logic stuff----------------------------------------------
 #define MAZE_DIMENSION 8
@@ -275,7 +290,7 @@ float turn_pwm (State state, float dt){
   if(state == StateTurnLeft){
     return update_PID(turn_pid, -TARGET_ANGULAR_SPEED, current_yaw_rate, dt);
   }
-  else if(state == StateTurnRight){
+  else if(state == StateTurnRight || state == StateUTurn){
     return update_PID(turn_pid, TARGET_ANGULAR_SPEED, current_yaw_rate, dt);
   }
   else{
@@ -317,7 +332,7 @@ float time_passed() {
 
 float forward_distance_travelled = 0.0f; //variable for keeping track of distance travelled
 
-void read_right_sensor(){
+float read_right_sensor(){
   while(!sensorRight.checkForDataReady()) delay(1);
   int distance_right = sensorRight.getDistance();
   sensorRight.clearInput();
@@ -325,7 +340,7 @@ void read_right_sensor(){
   return distance_right;
 }
 
-void read_left_sensor(){
+float read_left_sensor(){
   while(!sensorLeft.checkForDataReady()) delay(1);
   int distance_left = sensorLeft.getDistance();
   sensorLeft.clearInput();
@@ -333,7 +348,7 @@ void read_left_sensor(){
   return distance_left;
 }
 
-void read_front_sensor(){
+float read_front_sensor(){
   while(!sensorFront.checkForDataReady()) delay(1);
   int distance_front = sensorFront.getDistance();
   sensorFront.clearInput();
@@ -341,7 +356,7 @@ void read_front_sensor(){
   return distance_front;
 }
 
-bool isWall(bool direction) {
+bool isWall(Direction direction) {
   sensorFront.startRanging();
   sensorLeft.startRanging();
   sensorRight.startRanging();
@@ -364,124 +379,124 @@ bool isWall(bool direction) {
   return false;
 }
 
-enum Direction {
-  FRONT,
-  LEFT, 
-  RIGHT
-};
-
 void update_walls(){
   int x = (int)(lroundf(mouse_x));
   int y = (int)(lroundf(mouse_y));
   if (isWall(FRONT)){
     if (mouse_direction == NORTH) {
             wall_location[x][y].north = true;
-            API_setWall(x, y, 'n');
-            if (y < MAZE_DIMENSION - 1) { wall_location[x][y+1].south = true; API_setWall(x, y+1, 's'); }
+            //API_setWall(x, y, 'n');
+            if (y < MAZE_DIMENSION - 1) { wall_location[x][y+1].south = true; }
         } else if (mouse_direction == EAST) {
             wall_location[x][y].east = true;
-            API_setWall(x, y, 'e');
-            if (x < MAZE_DIMENSION - 1) { wall_location[x+1][y].west = true; API_setWall(x+1, y, 'w'); }
+            //API_setWall(x, y, 'e');
+            if (x < MAZE_DIMENSION - 1) { wall_location[x+1][y].west = true;  }
         } else if (mouse_direction == SOUTH) {
             wall_location[x][y].south = true;
-            API_setWall(x, y, 's');
-            if (y > 0) { wall_location[x][y-1].north = true; API_setWall(x, y-1, 'n'); }
+            //API_setWall(x, y, 's');
+            if (y > 0) { wall_location[x][y-1].north = true;  }
         } else if (mouse_direction == WEST) {
             wall_location[x][y].west = true;
-            API_setWall(x, y, 'w');
-            if (x > 0) { wall_location[x-1][y].east = true; API_setWall(x-1, y, 'e'); }
+            //API_setWall(x, y, 'w');
+            if (x > 0) { wall_location[x-1][y].east = true;  }
         }
   }
   if (isWall(LEFT)){
     if (mouse_direction == NORTH) {
             wall_location[x][y].west = true;
-            API_setWall(x, y, 'w');
-            if (x > 0) { wall_location[x-1][y].east = true; API_setWall(x-1, y, 'e'); }
+            if (x > 0) { wall_location[x-1][y].east = true; }
         } else if (mouse_direction == EAST) {
             wall_location[x][y].north = true;
-            API_setWall(x, y, 'n');
-            if (y < MAZE_DIMENSION - 1) { wall_location[x][y+1].south = true; API_setWall(x, y+1, 's'); }
+            if (y < MAZE_DIMENSION - 1) { wall_location[x][y+1].south = true; }
         } else if (mouse_direction == SOUTH) {
             wall_location[x][y].east = true;
-            API_setWall(x, y, 'e');
-            if (x < MAZE_DIMENSION - 1) { wall_location[x+1][y].west = true; API_setWall(x+1, y, 'w'); }
+            if (x < MAZE_DIMENSION - 1) { wall_location[x+1][y].west = true;  }
         } else if (mouse_direction == WEST) {
             wall_location[x][y].south = true;
-            API_setWall(x, y, 's');
-            if (y > 0) { wall_location[x][y-1].north = true; API_setWall(x, y-1, 'n'); }
+            if (y > 0) { wall_location[x][y-1].north = true;  }
         }
   }
   if(isWall(RIGHT)){
      if (mouse_direction == NORTH) {
             wall_location[x][y].east = true;
-            API_setWall(x, y, 'e');
-            if (x < MAZE_DIMENSION - 1) { wall_location[x+1][y].west = true; API_setWall(x+1, y, 'w'); }
+            if (x < MAZE_DIMENSION - 1) { wall_location[x+1][y].west = true;  }
         } else if (mouse_direction == EAST) {
             wall_location[x][y].south = true;
-            API_setWall(x, y, 's');
-            if (y > 0) { wall_location[x][y-1].north = true; API_setWall(x, y-1, 'n'); }
+            if (y > 0) { wall_location[x][y-1].north = true;  }
         } else if (mouse_direction == SOUTH) {
             wall_location[x][y].west = true;
-            API_setWall(x, y, 'w');
-            if (x > 0) { wall_location[x-1][y].east = true; API_setWall(x-1, y, 'e'); }
+            if (x > 0) { wall_location[x-1][y].east = true; }
         } else if (mouse_direction == WEST) {
             wall_location[x][y].north = true;
-            API_setWall(x, y, 'n');
-            if (y < MAZE_DIMENSION - 1) { wall_location[x][y+1].south = true; API_setWall(x, y+1, 's'); }
+            if (y < MAZE_DIMENSION - 1) { wall_location[x][y+1].south = true; }
         }
   }
 }
 
 //Function that holds the logic for turning and heading reassignment
-void flood_fill(){
-  //if () return; //logic for when lowest weight square is forward
-  int min_val = 255;
-  int best_dir = -1;
+// void flood_fill(){
+//   //if () return; //logic for when lowest weight square is forward
+//   int min_val = 255;
+//   int best_dir = -1;
 
-  int dx[] = {0, 1, 0, -1};
-  int dy[] = {1, 0, -1, 0};
+//   int dx[] = {0, 1, 0, -1};
+//   int dy[] = {1, 0, -1, 0};
 
-  // Check all 4 neighbours
-  for (int d_check = 0; d_check < 4; d_check++) {
-    int nx = (int)(lroundf(mouse_x)) + dx[d_check];
-    int ny = (int)(lroundf(mouse_y)) + dy[d_check];
-    if (nx >= 0 && nx < MAZE_DIMENSION && ny >= 0 && ny < MAZE_DIMENSION) {
-    // If path is clear in memory
-      if (!wall_in_direction(wall_location[(int)(lroundf(mouse_x))][(int)(lroundf(mouse_y))], d_check)) {
-        if (weight[nx][ny] < min_val || (weight[nx][ny] == min_val && d_check == mouse_direction)) { // preference going straight to prevent getting stuck
-          min_val = weight[nx][ny];
-          best_dir = d_check;
-        }
-      }
-    }
-  }
+//   // Check all 4 neighbours
+//   for (int d_check = 0; d_check < 4; d_check++) {
+//     int nx = (int)(lroundf(mouse_x)) + dx[d_check];
+//     int ny = (int)(lroundf(mouse_y)) + dy[d_check];
+//     if (nx >= 0 && nx < MAZE_DIMENSION && ny >= 0 && ny < MAZE_DIMENSION) {
+//     // If path is clear in memory
+//       if (!wall_in_direction(wall_location[(int)(lroundf(mouse_x))][(int)(lroundf(mouse_y))], d_check)) {
+//         if (weight[nx][ny] < min_val || (weight[nx][ny] == min_val && d_check == mouse_direction)) { // preference going straight to prevent getting stuck
+//           min_val = weight[nx][ny];
+//           best_dir = d_check;
+//         }
+//       }
+//     }
+//   }
 
-  // if (best_dir != -1) {
-  //   // Turn to face best direction
-  //   if (best_dir == mouse_direction) {
-  //   // already facing right way
-  //   } else if (best_dir == (mouse_direction + 1) % 4) {
-  //       turnRight();
-  //       target_heading = target_heading - 90; 
-  //     } else if (best_dir == (mouse_direction + 3) % 4) {
-  //         turnLeft();
-  //         target_heading = target_heading + 90;
-  //       } else {
-  //         turnRight();
-  //         turnRight();
-  //         target_heading = target_heading + 180;
-  //       }
-  //   }
-} 
+//   // if (best_dir != -1) {
+//   //   // Turn to face best direction
+//   //   if (best_dir == mouse_direction) {
+//   //   // already facing right way
+//   //   } else if (best_dir == (mouse_direction + 1) % 4) {
+//   //       turnRight();
+//   //       target_heading = target_heading - 90; 
+//   //     } else if (best_dir == (mouse_direction + 3) % 4) {
+//   //         turnLeft();
+//   //         target_heading = target_heading + 90;
+//   //       } else {
+//   //         turnRight();
+//   //         turnRight();
+//   //         target_heading = target_heading + 180;
+//   //       }
+//   //   }
+// } 
 
 void stop(){
   analogWrite(LEFT_MOTOR_PWM, 0);
   analogWrite(RIGHT_MOTOR_PWM, 0);
 }
 
+long last_left_pulses = 0;
+long last_right_pulses = 0;
+
 //function for dead reckoning
 void update_position(){
-  float pulses = (left_pulses + right_pulses) / 2;
+  noInterrupts();
+  int left_snapshot = left_pulses;
+  int right_snapshot = right_pulses;
+  interrupts();
+
+  int left_delta  = left_snapshot  - last_left_pulses;
+  int right_delta = right_snapshot - last_right_pulses;
+
+  last_left_pulses  = left_snapshot;
+  last_right_pulses = right_snapshot;
+
+  float pulses = (left_delta + right_delta) / 2;
   float distance_travelled = (pulses * mm_per_tick) / 160;
   dead_reckoning(current_state, distance_travelled);
 }
@@ -531,10 +546,11 @@ Event update_event(){
       }
     }
   }
-  if (currentState == StateTurnLeft || currentState == StateTurnRight || currentState == StateUTurn && turn_done()) {
+  if ((current_state == StateTurnLeft || current_state == StateTurnRight || current_state == StateUTurn) && (turn_done())) {
       current_heading = roundf(current_heading / 90.0f) * 90.0f; // returns the heading value to a 90 degree multiple, the bandaid method fr
       return EventDoneTurning;
     }
+  return EventNone;
 }
 
 State find_best_step()
@@ -576,15 +592,16 @@ State find_best_step()
             return StateUTurn;
         }
 
-        //change position after moving forwards
-        if (mouse_direction == NORTH) mouse_y++;
-        if (mouse_direction == EAST)  mouse_x++;
-        if (mouse_direction == SOUTH) mouse_y--;
-        if (mouse_direction == WEST)  mouse_x--;
+        //change position after moving forwards 
+        // if (mouse_direction == NORTH) mouse_y++;
+        // if (mouse_direction == EAST)  mouse_x++;
+        // if (mouse_direction == SOUTH) mouse_y--;
+        // if (mouse_direction == WEST)  mouse_x--;
 
         //and then move this line to another function, so after having called this function and then making mouse turn appropriately it will go forwards
         return StateForward;
     }
+  return current_state;
 }
 
 State transition(State state, Event event){
@@ -597,28 +614,35 @@ State transition(State state, Event event){
     case StateFinished:
       stop();
       break;
-    case StateMOT:
+    case StateMOT:{
       update_walls();
-      flood_fill();
       if(event == EventFinish) return StateFinished;
-      return find_best_step();
+      State next_step = find_best_step();
+      if(next_step == StateTurnLeft){
+        target_heading = target_heading + 90;
+      }
+      if(next_step == StateTurnRight){
+        target_heading = target_heading - 90;
+      }
+      if(next_step == StateUTurn){
+        target_heading = target_heading + 180;
+      }
+      return next_step;
+    }   
       break;
     case StateTurnLeft:
       if(event == EventFinish) return StateFinished;
       if(event == EventDoneTurning) return StateForward;
-      target_heading = target_heading + 90;
       drive();
       break;
     case StateTurnRight:
       if(event == EventFinish) return StateFinished;
       if(event == EventDoneTurning) return StateForward;
-      target_heading = target_heading - 90;
       drive();
       break;
     case StateUTurn:
       if(event == EventFinish) return StateFinished;
       if(event == EventDoneTurning) return StateForward;
-      target_heading = target_heading + 180;
       drive();
       break;
   }
@@ -697,13 +721,11 @@ void setup() {
 
 }
 
-float current_yaw_rate = 0.0;
-float current_heading = 0.0;
-
 void loop() {
   current_yaw_rate = update_gyro();
   current_heading += current_yaw_rate * time_passed();
-
+  
+  current_state = transition(current_state, update_event());
 
 }
 
