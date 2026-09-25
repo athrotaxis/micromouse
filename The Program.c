@@ -156,7 +156,7 @@ Cell dequeue(int* head)
 void calibrate_gyro() {
   long sum = 0;
   for (int i = 0; i < 500; i++){
-    int z_calibrate = gyro.GetRotationZ();
+    int z_calibrate = gyro.getRotationZ();
     sum += z_calibrate;
     delay(2); //this delay along with the for loop means that it takes 500 measurments of angular velocity across the span of 1 second, can be altered to increase or decrease accuracy as needed
   }
@@ -169,7 +169,7 @@ float update_gyro() {
   unsigned long arduino_time = micros();  //micros is an arduino function that keeps track of time since the arduino was turned on in microseconds
   float time_elapsed = (arduino_time - last_gyro_time)/1e6f; //pretty simple, just finding the time between readings, dividing by 10^6 is converting microseconds to seconds.
   last_gyro_time = arduino_time; 
-  int z_rotation_raw = gyro.GetRotationZ(); //raw data for rotation about the z axis
+  int z_rotation_raw = gyro.getRotationZ(); //raw data for rotation about the z axis
   float yaw = ((float)z_rotation_raw - gyro_z_offset) / 131.0f; //adjusts for the actual rotation by subtracting the stationary reading and dividing by 131 to give rotation in degrees per second
   if (abs(yaw) < 0.5){ 
     yaw = 0;
@@ -502,6 +502,7 @@ bool turn_done() {
   float heading_error = fabs(target_heading - current_heading);
   return heading_error < ACCEPTABLE_HEADING_ERROR; 
 }
+
 Event update_event(){
   if(mouse_x ==  4|| mouse_x ==5) {
     if(mouse_y == 4 || mouse_y == 5 ) {
