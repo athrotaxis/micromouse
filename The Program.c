@@ -1,4 +1,3 @@
-
 #include <MPU6050.h>
 #include <iostream>
 #include <Wire.h>
@@ -70,7 +69,7 @@ enum State {
   StateUTurn
 };
 
-State currentState = StateForward;
+State current_state = StateForward;
 
 enum Event{
   EventBegin,
@@ -79,8 +78,6 @@ enum Event{
   EventDoneTurning
 };
 
-enum 
-
 //Defining variables
 
 unsigned long last_gyro_time = 0; // used for tracking the previous time in terms of the arduino clock that the gyro last measured at
@@ -88,7 +85,7 @@ float gyro_z_offset = 0; //rotational velocity gyro reads while stationary
 float target_heading = 0; //the heading the micromouse is supposed to travel at
 
 //----------------------logic stuff----------------------------------------------
-#define MAZE_DIMENSION 
+#define MAZE_DIMENSION 8
 
 uint8_t weight [MAZE_DIMENSION][MAZE_DIMENSION]; //holds the weight of each cell
 
@@ -163,7 +160,7 @@ void calibrate_gyro() {
   gyro_z_offset = (float)sum /500; //takes the average of those 500 readings to determine the defualt angular velocity reading
 }
 
-//Reading sensor
+//Reading gyro (anticlockwise is positive)
 #define Kg 1
 float update_gyro() {
   unsigned long arduino_time = micros();  //micros is an arduino function that keeps track of time since the arduino was turned on in microseconds
@@ -325,25 +322,44 @@ void read_right_sensor(){
   int distance_right = sensorRight.getDistance();
   sensorRight.clearInput();
   sensorRight.stopRanging();
+  return distance_right;
 }
 
-bool isWall() {
+void read_left_sensor(){
+  while(!sensorLeft.checkForDataReady()) delay(1);
+  int distance_left = sensorLeft.getDistance();
+  sensorLeft.clearInput();
+  sensorLeft.stopRanging();
+  return distance_left;
+}
+
+void read_front_sensor(){
+  while(!sensorFront.checkForDataReady()) delay(1);
+  int distance_front = sensorFront.getDistance();
+  sensorFront.clearInput();
+  sensorFront.stopRanging();
+  return distance_front;
+}
+
+bool isWall(bool direction) {
   sensorFront.startRanging();
   sensorLeft.startRanging();
   sensorRight.startRanging();
 
-  read_front_sensor();
-  read_left_sensor();
-  read_right_sensor();
-
-  if (distance_front < FRONT_WALL_THRESHOLD) {
-    return true;
+  if (direction == FRONT) {
+    if (read_front_sensor() < FRONT_WALL_THRESHOLD) {
+      return true;
+    }
   }
-  if (distance_left < SIDE_WALL_THRESHOLD) {
-    return true;
+  if (direction == LEFT) {
+    if (read_left_sensor() < SIDE_WALL_THRESHOLD) {
+      return true;
+    }
   }
-  if (distance_right < SIDE_WALL_THRESHOLD) {
-    return true;
+  if (direction == RIGHT) {
+    if (read_right_sensor() < SIDE_WALL_THRESHOLD) {
+      return true;
+    }
   }
   return false;
 }
@@ -352,8 +368,11 @@ enum Direction {
   FRONT,
   LEFT, 
   RIGHT
-}
+};
+
 void update_walls(){
+  int x = (int)(lroundf(mouse_x));
+  int y = (int)(lroundf(mouse_y));
   if (isWall(FRONT)){
     if (mouse_direction == NORTH) {
             wall_location[x][y].north = true;
@@ -437,22 +456,22 @@ void flood_fill(){
     }
   }
 
-  if (best_dir != -1) {
-    // Turn to face best direction
-    if (best_dir == mouse_direction) {
-    // already facing right way
-    } else if (best_dir == (mouse_direction + 1) % 4) {
-        turnRight();
-        target_heading = target_heading - 90; 
-      } else if (best_dir == (mouse_direction + 3) % 4) {
-          turnLeft();
-          target_heading = target_heading + 90;
-        } else {
-          turnRight();
-          turnRight();
-          target_heading = target_heading + 180;
-        }
-    }
+  // if (best_dir != -1) {
+  //   // Turn to face best direction
+  //   if (best_dir == mouse_direction) {
+  //   // already facing right way
+  //   } else if (best_dir == (mouse_direction + 1) % 4) {
+  //       turnRight();
+  //       target_heading = target_heading - 90; 
+  //     } else if (best_dir == (mouse_direction + 3) % 4) {
+  //         turnLeft();
+  //         target_heading = target_heading + 90;
+  //       } else {
+  //         turnRight();
+  //         turnRight();
+  //         target_heading = target_heading + 180;
+  //       }
+  //   }
 } 
 
 void stop(){
@@ -468,7 +487,7 @@ void update_position(){
 }
 
 void dead_reckoning(State state, float distance){
-  if (state == StateTurn){
+  if (state == StateUTurn || state == StateTurnLeft || state == StateTurnRight){
     return;
   }
   else if (mouse_direction == NORTH){
@@ -490,12 +509,6 @@ void drive(){
   update_position();
   new_pwm();
 }
-void recentre(){
-  float correction_angle = RECENTRING_FACTOR * centre_error;
-  correction_angle = constrain(correction_angle, -RECENTRE_ANGLE, RECENTRE_ANGLE);
-
-  target_heading = correction_angle;
-}
 
 //used to figure out whether ts turn is done
 bool turn_done() {
@@ -503,6 +516,7 @@ bool turn_done() {
   return heading_error < ACCEPTABLE_HEADING_ERROR; 
 }
 
+unsigned long momentOfTruthAt = 0;
 Event update_event(){
   if(mouse_x ==  4|| mouse_x ==5) {
     if(mouse_y == 4 || mouse_y == 5 ) {
@@ -517,7 +531,7 @@ Event update_event(){
       }
     }
   }
-  if (currentState == StateTurnLeft || currentState == StateTurnRight || currentState == StateUTurn) && turn_done() {
+  if (currentState == StateTurnLeft || currentState == StateTurnRight || currentState == StateUTurn && turn_done()) {
       current_heading = roundf(current_heading / 90.0f) * 90.0f; // returns the heading value to a 90 degree multiple, the bandaid method fr
       return EventDoneTurning;
     }
@@ -576,33 +590,33 @@ State find_best_step()
 State transition(State state, Event event){
   switch(state){
     case StateForward:
-      if(event == EventFinish) return StateFinish;
-      if(event == EventMomentOfTruth) return StateMoT;
+      if(event == EventFinish) return StateFinished;
+      if(event == EventMomentOfTruth) return StateMOT;
       drive();
       break;
     case StateFinished:
       stop();
       break;
     case StateMOT:
-      updateWalls();
+      update_walls();
       flood_fill();
-      if(event == EventFinish) return StateFinish;
+      if(event == EventFinish) return StateFinished;
       return find_best_step();
       break;
-    case StateLeftTurn:
-      if(event == EventFinish) return StateFinish;
+    case StateTurnLeft:
+      if(event == EventFinish) return StateFinished;
       if(event == EventDoneTurning) return StateForward;
       target_heading = target_heading + 90;
       drive();
       break;
-    case StateRightTurn:
-      if(event == EventFinish) return StateFinish;
+    case StateTurnRight:
+      if(event == EventFinish) return StateFinished;
       if(event == EventDoneTurning) return StateForward;
       target_heading = target_heading - 90;
       drive();
       break;
     case StateUTurn:
-      if(event == EventFinish) return StateFinish;
+      if(event == EventFinish) return StateFinished;
       if(event == EventDoneTurning) return StateForward;
       target_heading = target_heading + 180;
       drive();
@@ -673,8 +687,8 @@ void setup() {
     weight[5][4] = 0;
     weight[5][5] = 0;
 
-    for (int i = 0; i<16; i++) {
-        for (int j=0; j<16; j++) {
+    for (int i = 0; i < MAZE_DIMENSION; i++) {
+        for (int j=0; j < MAZE_DIMENSION; j++) {
             visited[i][j] = false; //initialise array of visited cells
         }
     }
