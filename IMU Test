@@ -1,0 +1,70 @@
+#include <MPU6050.h>
+#include <Wire.h>
+
+MPU6050 gyro;
+
+//Reading sensor
+#define Kg 1
+float gyro_z_offset = 0; //rotational velocity gyro reads while stationary
+unsigned long last_gyro_time = 0; // used for tracking the previous time the gyro last measured at
+
+float current_yaw_rate = 0.0;
+float current_heading = 0.0;
+
+//function used for determining the time between updates
+unsigned long last_time = 0;
+float time_passed() {
+  unsigned long now = micros();
+  float time_its_been = (now - last_time) / 1e6f;
+  last_time = now;
+  return time_its_been;
+}
+
+//Determining the reading whilst stationary so that the gyro may be more accurate
+void calibrate_gyro() {
+  long sum = 0;
+  for (int i = 0; i < 500; i++){
+    int z_calibrate = gyro.getRotationZ();
+    sum += z_calibrate;
+    delay(2); //takes 500 measurements of angular velocity across ~1 second
+  }
+  gyro_z_offset = (float)sum / 500; //average of those 500 readings = default angular velocity reading
+}
+
+float update_gyro() {
+  unsigned long arduino_time = micros();
+  float time_elapsed = (arduino_time - last_gyro_time) / 1e6f; //time between readings, converted to seconds
+  last_gyro_time = arduino_time;
+  int z_rotation_raw = gyro.getRotationZ(); //raw data for rotation about the z axis
+  float yaw = ((float)z_rotation_raw - gyro_z_offset) / 131.0f; //adjust for stationary reading, convert to deg/s
+  if (abs(yaw) < 0.5){
+    yaw = 0;
+  }
+  return yaw * Kg;
+}
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+
+  gyro.initialize();
+
+  Serial.println("Calibrating gyro, keep the mouse still...");
+  calibrate_gyro();
+  Serial.print("Gyro Z offset: ");
+  Serial.println(gyro_z_offset);
+  Serial.println("Calibration done. Starting readings...");
+
+  last_time = micros();
+  last_gyro_time = micros();
+}
+
+void loop() {
+  current_yaw_rate = update_gyro();
+  current_heading += current_yaw_rate * time_passed();
+
+  Serial.print("Yaw rate (deg/s): ");
+  Serial.print(current_yaw_rate);
+
+  delay(500); //slow the prints down so they're readable
+}
