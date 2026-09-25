@@ -28,7 +28,7 @@
 #define STOPPED_THRESHOLD 100
 
 //DEFINING ACCEPTABLE ERRORS
-#define ACCEPTABLE_HEADING_ERROR 0
+#define ACCEPTABLE_HEADING_ERROR 1 //mm
 
 //Defining some things for l8er
 #define base_speed 100
@@ -38,7 +38,9 @@
 //Defining distances so that the mouse knows if the wall it is detecting is the wall associated with the cell its in or not
 #define FRONT_WALL_THRESHOLD
 #define SIDE_WALL_THRESHOLD
-
+#define MOMENT_OF_TRUTH_COOLDOWN 1000 //in milliseconds
+#define THRESHOLD_CELLCENTRE_X
+#define THRESHOLD_CELLCENTRE_Y
 //#define WALL_DISTANCE 2.45 i think this is wrong leave for now
 
 #define TARGET_SPEED 100 //placeholder
@@ -274,13 +276,13 @@ float sense_lr (){
 
 float turn_pwm (State state, float dt){
   if(state == StateTurnLeft){
-    return update_PID(turn_pid, -TARGET_ANGULAR_SPEED, update_gyro(), dt);
+    return update_PID(turn_pid, -TARGET_ANGULAR_SPEED, current_yaw_rate, dt);
   }
   else if(state == StateTurnRight){
-    return update_PID(turn_pid, TARGET_ANGULAR_SPEED, update_gyro(), dt);
+    return update_PID(turn_pid, TARGET_ANGULAR_SPEED, current_yaw_rate, dt);
   }
   else{
-  return update_PID(turn_pid, sense_lr(), update_gyro(), dt); //maybe look at seperating all the different time_elapsed's later 
+  return update_PID(turn_pid, sense_lr(), current_yaw_rate, dt); //maybe look at seperating all the different time_elapsed's later 
   }
 }
 
@@ -325,7 +327,7 @@ void read_right_sensor(){
   sensorRight.stopRanging();
 }
 
-void read_sensors(){
+bool isWall() {
   sensorFront.startRanging();
   sensorLeft.startRanging();
   sensorRight.startRanging();
@@ -334,19 +336,23 @@ void read_sensors(){
   read_left_sensor();
   read_right_sensor();
 
-  centre_error = distance_right - distance_left;
-  if (abs(centre_error) < CENTRE_TOLERANCE){
-    return EventOffCentre;
+  if (distance_front < FRONT_WALL_THRESHOLD) {
+    return true;
   }
-  else{
-    return EventNone;
+  if (distance_left < SIDE_WALL_THRESHOLD) {
+    return true;
   }
+  if (distance_right < SIDE_WALL_THRESHOLD) {
+    return true;
+  }
+  return false;
 }
 
-bool isWall() {
-  // return if theres a wall on the left
+enum Direction {
+  FRONT,
+  LEFT, 
+  RIGHT
 }
-
 void update_walls(){
   if (isWall(FRONT)){
     if (mouse_direction == NORTH) {
@@ -457,7 +463,7 @@ void stop(){
 //function for dead reckoning
 void update_position(){
   float pulses = (left_pulses + right_pulses) / 2;
-  float distance_travelled = pulses * mm_per_tick;
+  float distance_travelled = (pulses * mm_per_tick) / 160;
   dead_reckoning(current_state, distance_travelled);
 }
 
@@ -491,12 +497,29 @@ void recentre(){
   target_heading = correction_angle;
 }
 
+//used to figure out whether ts turn is done
+bool turn_done() {
+  float heading_error = fabs(target_heading - current_heading);
+  return heading_error < ACCEPTABLE_HEADING_ERROR; 
+}
 Event update_event(){
   if(mouse_x ==  4|| mouse_x ==5) {
-    if(mouse_y==4 || mouse_y ==5 ) {
+    if(mouse_y == 4 || mouse_y == 5 ) {
       return EventFinish;
     }
-  } if (mouse)
+  } if ((mouse_x-(float)((int)(mouse_x)))<THRESHOLD_CELLCENTRE_X) {
+    if ((mouse_y-(float)((int)(mouse_y)))<THRESHOLD_CELLCENTRE_Y) {
+      if(momentOfTruthAt + MOMENT_OF_TRUTH_COOLDOWN < millis()) { //we didnt already just have a moment of truth 
+        // Set a flag to indicate we've just had a moment of truth
+        momentOfTruthAt = millis();
+        return EventMomentOfTruth;
+      }
+    }
+  }
+  if (currentState == StateTurnLeft || currentState == StateTurnRight || currentState == StateUTurn) && turn_done() {
+      current_heading = roundf(current_heading / 90.0f) * 90.0f; // returns the heading value to a 90 degree multiple, the bandaid method fr
+      return EventDoneTurning;
+    }
 }
 
 State find_best_step()
@@ -568,11 +591,19 @@ State transition(State state, Event event){
     case StateLeftTurn:
       if(event == EventFinish) return StateFinish;
       if(event == EventDoneTurning) return StateForward;
+      target_heading = target_heading + 90;
       drive();
       break;
     case StateRightTurn:
       if(event == EventFinish) return StateFinish;
       if(event == EventDoneTurning) return StateForward;
+      target_heading = target_heading - 90;
+      drive();
+      break;
+    case StateUTurn:
+      if(event == EventFinish) return StateFinish;
+      if(event == EventDoneTurning) return StateForward;
+      target_heading = target_heading + 180;
       drive();
       break;
   }
@@ -651,8 +682,14 @@ void setup() {
 
 }
 
+float current_yaw_rate = 0.0;
+float current_heading = 0.0;
+
 void loop() {
-  
+  current_yaw_rate = update_gyro();
+  current_heading += current_yaw_rate * time_passed();
+
+
 }
 
   
