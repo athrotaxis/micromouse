@@ -434,46 +434,50 @@ void update_walls(){
 }
 
 //Function that holds the logic for turning and heading reassignment
-// void flood_fill(){
-//   //if () return; //logic for when lowest weight square is forward
-//   int min_val = 255;
-//   int best_dir = -1;
+void flood_fill(){
+  // Reset all weights to 255 before recalculating (its not set to 0 as thats what the center squares are)
+    for (int i = 0; i < MAZE_DIMENSION; i++) {
+        for (int j = 0; j < MAZE_DIMENSION; j++) {
+            weight[i][j] = 255;
+        }
+    }
 
-//   int dx[] = {0, 1, 0, -1};
-//   int dy[] = {1, 0, -1, 0};
+    int head = 0, tail = 0; //lowkey forgot but at one point in my life i understood this
 
-//   // Check all 4 neighbours
-//   for (int d_check = 0; d_check < 4; d_check++) {
-//     int nx = (int)(lroundf(mouse_x)) + dx[d_check];
-//     int ny = (int)(lroundf(mouse_y)) + dy[d_check];
-//     if (nx >= 0 && nx < MAZE_DIMENSION && ny >= 0 && ny < MAZE_DIMENSION) {
-//     // If path is clear in memory
-//       if (!wall_in_direction(wall_location[(int)(lroundf(mouse_x))][(int)(lroundf(mouse_y))], d_check)) {
-//         if (weight[nx][ny] < min_val || (weight[nx][ny] == min_val && d_check == mouse_direction)) { // preference going straight to prevent getting stuck
-//           min_val = weight[nx][ny];
-//           best_dir = d_check;
-//         }
-//       }
-//     }
-//   }
+    for (uint8_t i = 7; i < 9; i++) { //set center goals to have weight of 0
+        for (uint8_t j = 7; j < 9; j++) {
+            weight[i][j] = 0;
+            queue[tail++] = (Cell){i, j};
+        }
+    }
+    
+    //4 possible directions of movement of mouse which are used to change the x and y coordinate of the locaiton being looked at
+    int dx[] = {0, 1, 0, -1}; 
+    int dy[] = {1, 0, -1, 0};
 
-//   // if (best_dir != -1) {
-//   //   // Turn to face best direction
-//   //   if (best_dir == mouse_direction) {
-//   //   // already facing right way
-//   //   } else if (best_dir == (mouse_direction + 1) % 4) {
-//   //       turnRight();
-//   //       target_heading = target_heading - 90; 
-//   //     } else if (best_dir == (mouse_direction + 3) % 4) {
-//   //         turnLeft();
-//   //         target_heading = target_heading + 90;
-//   //       } else {
-//   //         turnRight();
-//   //         turnRight();
-//   //         target_heading = target_heading + 180;
-//   //       }
-//   //   }
-// } 
+    /*
+    BFS algorithm
+    From a Python program by @alfredjoejr on Github: https://github.com/alfredjoejr/mms-python/blob/main/Main.py
+    Translated into C using Claude
+    */
+    while (head != tail) {
+        Cell c = dequeue(&head);
+        uint8_t current_weight = weight[c.x][c.y];
+
+        for (int d = 0; d < 4; d++) {
+            int nx = c.x + dx[d];
+            int ny = c.y + dy[d];
+            if (nx >= 0 && nx < MAZE_DIMENSION && ny >= 0 && ny < MAZE_DIMENSION) {
+                if (!wall_in_direction(wall_location[c.x][c.y], d)) {
+                    if (current_weight < 255 && weight[nx][ny] > current_weight + 1) {
+                        weight[nx][ny] = current_weight + 1;
+                        enqueue((Cell){nx, ny}, &tail);
+                    }  
+                }
+            }
+        }
+    }
+} 
 
 void stop(){
   analogWrite(LEFT_MOTOR_PWM, 0);
@@ -616,6 +620,7 @@ State transition(State state, Event event){
       break;
     case StateMOT:{
       update_walls();
+      flood_fill();
       if(event == EventFinish) return StateFinished;
       State next_step = find_best_step();
       if(next_step == StateTurnLeft){
