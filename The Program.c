@@ -15,20 +15,20 @@
 #define RIGHT_ADDRESS 0x31
 
 //MOTOR PINS
-#define LEFT_MOTOR_CTRL 
-#define LEFT_MOTOR_PWM 
-#define RIGHT_MOTOR_CTRL
-#define RIGHT_MOTOR_PWM
+#define LEFT_MOTOR_CTRL 16
+#define LEFT_MOTOR_PWM 12
+#define RIGHT_MOTOR_CTRL 13
+#define RIGHT_MOTOR_PWM 26
 
 //ENCODER PINS
-#define LEFT_ENCODER_PIN 34
-#define RIGHT_ENCODER_PIN 35
+#define LEFT_ENCODER_PIN 35
+#define RIGHT_ENCODER_PIN 34
 
 //DISTANCE RELATED TO WHEEL ENCODERS
 #define PULSES_PER_REVOLUTION 12
 
 //TIME THRESHOLD BEFORE WHEEL IS CONSIDERED STOPPED
-#define STOPPED_THRESHOLD 100
+#define STOPPED_THRESHOLD 100000
 
 //DEFINING ACCEPTABLE ERRORS
 #define ACCEPTABLE_HEADING_ERROR 1 //mm
@@ -42,8 +42,8 @@
 #define FRONT_WALL_THRESHOLD 5
 #define SIDE_WALL_THRESHOLD 5
 #define MOMENT_OF_TRUTH_COOLDOWN 1000 //in milliseconds
-#define THRESHOLD_CELLCENTRE_X 2.5
-#define THRESHOLD_CELLCENTRE_Y 2.5
+#define THRESHOLD_CELLCENTRE_X 0.1
+#define THRESHOLD_CELLCENTRE_Y 0.1
 //#define WALL_DISTANCE 2.45 i think this is wrong leave for now
 
 #define TARGET_SPEED 100 //placeholder
@@ -126,8 +126,8 @@ typedef enum directions {NORTH, EAST, SOUTH, WEST} directions;
 enum directions mouse_direction = NORTH;
 
 
-float mouse_x = 0;
-float mouse_y = 0;
+float mouse_x = 168/2;
+float mouse_y = 166/2;
 
 //store cell locations (x, y coords) to iterate thru
 typedef struct {
@@ -453,6 +453,13 @@ void flood_fill(){
             queue[tail++] = (Cell){i, j};
         }
     }
+    for (uint8_t i = center_low; i <= center_high; i++) {
+      for (uint8_t j = center_low; j <= center_high; j++) {
+        weight[i][j] = 0;
+        enqueue((Cell){i, j}, &tail);
+      }
+    }
+    
     
     //4 possible directions of movement of mouse which are used to change the x and y coordinate of the locaiton being looked at
     int dx[] = {0, 1, 0, -1}; 
@@ -540,13 +547,17 @@ bool turn_done() {
 
 unsigned long momentOfTruthAt = 0;
 Event update_event(){
-  if(mouse_x ==  4|| mouse_x ==5) {
-    if(mouse_y == 4 || mouse_y == 5 ) {
-      return EventFinish;
-    }
+  int cx = (int)lroundf(mouse_x);
+  int cy = (int)lroundf(mouse_y);
+  if ((cx == center_low || cx == center_high) &&
+      (cy == center_low || cy == center_high)) {
+    return EventFinish;
+  }
+  
+  //center
   } if ((mouse_x-(float)((int)(mouse_x)))<THRESHOLD_CELLCENTRE_X) {
     if ((mouse_y-(float)((int)(mouse_y)))<THRESHOLD_CELLCENTRE_Y) {
-      if(momentOfTruthAt + MOMENT_OF_TRUTH_COOLDOWN < millis()) { //we didnt already just have a moment of truth 
+      if(millis() - momentOfTruthAt > MOMENT_OF_TRUTH_COOLDOWN) { //we didnt already just have a moment of truth 
         // Set a flag to indicate we've just had a moment of truth
         momentOfTruthAt = millis();
         return EventMomentOfTruth;
@@ -714,10 +725,10 @@ void setup() {
     }
     
     //Set center positions
-    weight[4][4] = 0;
-    weight[4][5] = 0;
-    weight[5][4] = 0;
-    weight[5][5] = 0;
+    weight[center_low][center_low]   = 0;
+    weight[center_low][center_high]  = 0;
+    weight[center_high][center_low]  = 0;
+    weight[center_high][center_high] = 0;
 
     for (int i = 0; i < MAZE_DIMENSION; i++) {
         for (int j=0; j < MAZE_DIMENSION; j++) {
