@@ -112,11 +112,11 @@
   void loop() {
       read_sensors();
       Serial.print("Front Sensor: ");
-      Serial.print(distance_front);
+      Serial.print((1/1.55)(52.143+distance_front));
       Serial.print(" Left Sensor: ");
-      Serial.print(distance_left);
+      Serial.print((1/1.55)(52.143+distance_left));
       Serial.print(" Right Sensor: ");
-      Serial.println(distance_right);
+      Serial.println((1/1.55)(52.143+distance_right));
       delay(1000);
 
   }
