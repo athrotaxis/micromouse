@@ -664,12 +664,10 @@ State transition(State state, Event event){
 }
 
 void setup() {
+  Wire.begin();
   //IMU
   gyro.initialize();
   calibrate_gyro();
-
-  //SENSORS
-  Wire.begin();
 
   //SETTING UP MOTORS
   pinMode(LEFT_MOTOR_CTRL, OUTPUT);
