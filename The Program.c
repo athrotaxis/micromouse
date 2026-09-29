@@ -24,6 +24,8 @@
 #define LEFT_ENCODER_PIN 34
 #define RIGHT_ENCODER_PIN 35
 
+#define BUTTON_PIN 27
+
 //DISTANCE RELATED TO WHEEL ENCODERS
 #define PULSES_PER_REVOLUTION 12
 
@@ -663,7 +665,16 @@ State transition(State state, Event event){
   return state;
 }
 
+void wait_for_button() {
+  Serial.println("Press the button to start");
+  while (digitalRead(BUTTON_PIN) == LOW)  delay(10);  // if it's already held, wait for release
+  while (digitalRead(BUTTON_PIN) == HIGH) delay(10);  // wait for the press
+  delay(50);                                           // debounce
+  while (digitalRead(BUTTON_PIN) == LOW)  delay(10);  // wait for release
+}
+
 void setup() {
+
   Wire.begin();
   //IMU
   gyro.initialize();
@@ -730,10 +741,27 @@ void setup() {
         }
     }
 
+  pinMode(BUTTON_PIN, INPUT_PULLUP);  // assumes the button connects the pin to GND when pressed
+
+  wait_for_button();
+
+  delay(1000);         // hands off the mouse before the gyro calibrates
+  calibrate_gyro();    // move the call here from the top of setup()
+
+  // wipe anything that accumulated while it was waiting
+  noInterrupts();
+  left_pulses = 0;
+  right_pulses = 0;
+  interrupts();
+  last_left_pulses = 0;
+  last_right_pulses = 0;
+  current_heading = 0;
+  target_heading = 0;
+
   last_gyro_time = micros();
   last_time = micros();
-
 }
+
 
 void loop() {
   update_gyro();
