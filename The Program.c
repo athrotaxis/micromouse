@@ -346,7 +346,7 @@ float forward_distance_travelled = 0.0f; //variable for keeping track of distanc
 float read_right_sensor(){
   while(!sensorRight.checkForDataReady()) delay(1);
   int distance_right = sensorRight.getDistance();
-  sensorRight.clearInput();
+  sensorRight.clearInterrupt();
   sensorRight.stopRanging();
   return (1/1.55)*(distance_right+52.143);
 }
@@ -354,7 +354,7 @@ float read_right_sensor(){
 float read_left_sensor(){
   while(!sensorLeft.checkForDataReady()) delay(1);
   int distance_left = sensorLeft.getDistance();
-  sensorLeft.clearInput();
+  sensorLeft.clearInterrupt();
   sensorLeft.stopRanging();
   return (1/1.55)*(distance_left+52.143);
 }
@@ -362,7 +362,7 @@ float read_left_sensor(){
 float read_front_sensor(){
   while(!sensorFront.checkForDataReady()) delay(1);
   int distance_front = sensorFront.getDistance();
-  sensorFront.clearInput();
+  sensorFront.clearInterrupt();
   sensorFront.stopRanging();
   return (1/1.55)*(distance_front+52.143);
 }
