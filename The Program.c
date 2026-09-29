@@ -134,6 +134,9 @@ typedef struct {
     int x, y;
 } Cell;
 
+uint8_t center_low = (MAZE_DIMENSION/2)-1;
+uint8_t center_high = MAZE_DIMENSION/2;
+
 bool visited[MAZE_DIMENSION][MAZE_DIMENSION];
 
 bool wall_in_direction(walls w, int d) {
@@ -343,7 +346,7 @@ float read_right_sensor(){
   int distance_right = sensorRight.getDistance();
   sensorRight.clearInput();
   sensorRight.stopRanging();
-  return distance_right;
+  return (1/1.55)*(distance_right+52.143);
 }
 
 float read_left_sensor(){
@@ -351,7 +354,7 @@ float read_left_sensor(){
   int distance_left = sensorLeft.getDistance();
   sensorLeft.clearInput();
   sensorLeft.stopRanging();
-  return distance_left;
+  return (1/1.55)*(distance_left+52.143);
 }
 
 float read_front_sensor(){
@@ -359,7 +362,7 @@ float read_front_sensor(){
   int distance_front = sensorFront.getDistance();
   sensorFront.clearInput();
   sensorFront.stopRanging();
-  return distance_front;
+  return (1/1.55)*(distance_front+52.143);
 }
 
 bool isWall(Direction direction) {
