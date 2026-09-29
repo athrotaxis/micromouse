@@ -6,23 +6,23 @@
 
 //PIN DEFINITIONS
 //Sensors
-#define XSHUT_FRONT 
-#define XSHUT_LEFT
-#define XSHUT_RIGHT
+#define XSHUT_FRONT 14
+#define XSHUT_LEFT 4
+#define XSHUT_RIGHT 15
 
 #define FRONT_ADDRESS 0x29
 #define LEFT_ADDRESS 0x30
 #define RIGHT_ADDRESS 0x31
 
 //MOTOR PINS
-#define LEFT_MOTOR_CTRL
-#define LEFT_MOTOR_PWM
+#define LEFT_MOTOR_CTRL 
+#define LEFT_MOTOR_PWM 
 #define RIGHT_MOTOR_CTRL
 #define RIGHT_MOTOR_PWM
 
 //ENCODER PINS
-#define LEFT_ENCODER_PIN
-#define RIGHT_ENCODER_PIN
+#define LEFT_ENCODER_PIN 34
+#define RIGHT_ENCODER_PIN 35
 
 //DISTANCE RELATED TO WHEEL ENCODERS
 #define PULSES_PER_REVOLUTION 12
@@ -39,11 +39,11 @@
 #define mm_per_tick (32 * PI) / 12 //mm
 
 //Defining distances so that the mouse knows if the wall it is detecting is the wall associated with the cell its in or not
-#define FRONT_WALL_THRESHOLD
-#define SIDE_WALL_THRESHOLD
+#define FRONT_WALL_THRESHOLD 5
+#define SIDE_WALL_THRESHOLD 5
 #define MOMENT_OF_TRUTH_COOLDOWN 1000 //in milliseconds
-#define THRESHOLD_CELLCENTRE_X
-#define THRESHOLD_CELLCENTRE_Y
+#define THRESHOLD_CELLCENTRE_X 2.5
+#define THRESHOLD_CELLCENTRE_Y 2.5
 //#define WALL_DISTANCE 2.45 i think this is wrong leave for now
 
 #define TARGET_SPEED 100 //placeholder
