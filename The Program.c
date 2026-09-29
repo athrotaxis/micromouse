@@ -180,16 +180,16 @@ void calibrate_gyro() {
 
 //Reading gyro (anticlockwise is positive)
 #define Kg 1
-float update_gyro() {
-  unsigned long arduino_time = micros();  //micros is an arduino function that keeps track of time since the arduino was turned on in microseconds
-  float time_elapsed = (arduino_time - last_gyro_time)/1e6f; //pretty simple, just finding the time between readings, dividing by 10^6 is converting microseconds to seconds.
-  last_gyro_time = arduino_time; 
-  int z_rotation_raw = gyro.getRotationZ(); //raw data for rotation about the z axis
-  float yaw = ((float)z_rotation_raw - gyro_z_offset) / 131.0f; //adjusts for the actual rotation by subtracting the stationary reading and dividing by 131 to give rotation in degrees per second
-  if (abs(yaw) < 0.5){ 
-    yaw = 0;
-  }
-  return yaw * Kg;
+void update_gyro() {
+  unsigned long now = micros();
+  float dt = (now - last_gyro_time) / 1e6f;
+  last_gyro_time = now;
+
+  float yaw = ((float)gyro.getRotationZ() - gyro_z_offset) / 131.0f;  // deg/s
+  if (fabsf(yaw) < 0.5f) yaw = 0;
+
+  current_yaw_rate = yaw;
+  current_heading += yaw * dt;
 }
 
 //WHEEL ENCODERS
@@ -254,16 +254,22 @@ float forward_pwm_calc(float dt) {
   return update_PID(forward_pid, TARGET_SPEED, avg_speed, dt);
 }
 
-//function that actually does the PID calculation
-float update_PID (PIDStuff &pid, float target_speed, float actual_speed, float time_elapsed){ 
-  float error = target_speed - actual_speed; //calculate discrepancy in speed
-  float proportional_term = pid.Kp * error; //calculate the first term of the PID equation
-  pid.integral += error * time_elapsed; //calculate the second term of the equation and add it to the stored memory
-  float integral_term = pid.Ki * pid.integral; //applies the coefficient to the integral term
-  float derivative_term = pid.Kd * (error - pid.last_error) / time_elapsed; //calculates the 3rd term which uses the stored value for the previous error
-  pid.last_error = error; 
-  
-  return proportional_term + integral_term + derivative_term; //sums the 3 terms together to give the pwm adjustment
+void reset_pid(PIDStuff &pid) {
+  pid.integral = 0;
+  pid.last_error = 0;
+}
+
+float update_PID(PIDStuff &pid, float target, float actual, float dt) {
+  if (dt <= 0.0001f) return 0; // prevents derivative term spiking
+
+  float error = target - actual;
+  pid.integral += error * dt;
+  pid.integral = constrain(pid.integral, -100.0f, 100.0f);  // requires tuning
+
+  float derivative = (error - pid.last_error) / dt;
+  pid.last_error = error;
+
+  return pid.Kp * error + pid.Ki * pid.integral + pid.Kd * derivative;
 }
 
 #define Kwall 1
@@ -669,11 +675,10 @@ State transition(State state, Event event){
 }
 
 void setup() {
-  //IMU
-  calibrate_gyro();
-
-  //SENSORS
   Wire.begin();
+  //IMU
+  gyro.initialize();
+  calibrate_gyro();
 
   //SETTING UP MOTORS
   pinMode(LEFT_MOTOR_CTRL, OUTPUT);
@@ -736,16 +741,20 @@ void setup() {
         }
     }
 
-
+  last_gyro_time = micros();
+  last_time = micros();
 
 }
 
 void loop() {
-  current_yaw_rate = update_gyro();
-  current_heading += current_yaw_rate * time_passed();
-  
-  current_state = transition(current_state, update_event());
+  update_gyro();
 
+  State next = transition(current_state, update_event());
+  if (next != current_state) {
+    reset_pid(turn_pid);
+    reset_pid(forward_pid);
+  }
+  current_state = next;
 }
 
   
