@@ -608,13 +608,13 @@ State find_best_step()
         if (best_dir == mouse_direction) {
             // already facing right way
         } else if (best_dir == (mouse_direction + 1) % 4) {
-            mouse_direction = (mouse_direction + 1) % 4;
+            mouse_direction = (directions)(mouse_direction + 1) % 4;
             return StateTurnRight; 
         } else if (best_dir == (mouse_direction + 3) % 4) {
-            mouse_direction = (mouse_direction + 3) % 4;
+            mouse_direction = (directions)(mouse_direction + 3) % 4;
             return StateTurnLeft;
         } else {
-            mouse_direction = (mouse_direction + 2) % 4;
+            mouse_direction = (directions)(mouse_direction + 2) % 4;
             return StateUTurn;
         }
 
